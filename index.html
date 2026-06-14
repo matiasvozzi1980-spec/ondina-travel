@@ -441,6 +441,7 @@
           <option value="pendiente">Pendiente</option>
           <option value="parcial">Parcial</option>
           <option value="pagado">Pagado</option>
+          <option value="favor">Saldo a favor</option>
         </select>
       </div>
       <div>
@@ -509,6 +510,7 @@
             <th class="py-2 px-3">Teléfono</th>
             <th class="py-2 px-3 text-center">Nº de files</th>
             <th class="py-2 px-3 text-right">Saldo pendiente</th>
+            <th class="py-2 px-3"></th>
           </tr>
         </thead>
         <tbody id="clientes-tbody"></tbody>
@@ -667,8 +669,10 @@
       <textarea id="sync-config-input" class="input" rows="5" placeholder='Pegá aquí el código de conexión (JSON)'></textarea>
       <div class="flex gap-2 mt-2 flex-wrap">
         <button onclick="connectSync()" class="btn-primary">Conectar este dispositivo</button>
+        <button onclick="copySyncConfig()" class="btn-ghost">Copiar código</button>
         <button onclick="disconnectSync()" class="btn-ghost">Desconectar este dispositivo</button>
       </div>
+      <p id="sync-copy-msg" class="text-sm mt-1" style="color:var(--green)"></p>
 
       <details class="mt-4 text-sm opacity-90">
         <summary class="cursor-pointer font-semibold">¿Todavía no tenés un código de conexión? Generarlo (una sola vez, desde cualquier dispositivo)</summary>
@@ -703,6 +707,7 @@ service cloud.firestore {
             <div><label class="label">PIN de acceso (opcional)</label><input id="gen-pin" class="input" inputmode="numeric" placeholder="Ej: 1234"></div>
           </div>
           <button onclick="generateSyncConfig()" class="btn-ghost mt-2">Generar código de conexión</button>
+          <p id="gen-msg" class="text-sm mt-1" style="color:var(--green)"></p>
         </div>
       </details>
     </div>
@@ -731,11 +736,90 @@ service cloud.firestore {
 
 </main>
 
-<!-- ============ MODAL: NUEVO FILE ============ -->
+<!-- ============ MODAL: EDITAR MOVIMIENTO ============ -->
+<div id="modal-mov" class="modal hidden">
+  <div class="modal-card">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-display text-xl">Editar movimiento</h3>
+      <button onclick="closeMovModal()" class="text-2xl leading-none">&times;</button>
+    </div>
+    <form id="mov-form" class="space-y-3">
+      <div>
+        <label class="label">Fecha</label>
+        <input type="date" id="mov-fecha" required class="input">
+      </div>
+      <div>
+        <label class="label">Concepto</label>
+        <input type="text" id="mov-concepto" required class="input">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">Monto</label>
+          <input type="number" step="0.01" min="0" id="mov-monto" required class="input">
+        </div>
+        <div>
+          <label class="label">Moneda</label>
+          <select id="mov-moneda" class="input">
+            <option value="USD">USD</option>
+            <option value="ARS">ARS</option>
+          </select>
+        </div>
+      </div>
+      <div id="mov-caja-wrap">
+        <label class="label">Caja</label>
+        <select id="mov-caja" class="input">
+          <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option>
+        </select>
+      </div>
+      <p id="mov-tipo-info" class="text-xs opacity-50"></p>
+      <button type="submit" class="btn-primary w-full">Guardar cambios</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: EDITAR CLIENTE ============ -->
+<div id="modal-cliente" class="modal hidden">
+  <div class="modal-card">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-display text-xl">Editar cliente</h3>
+      <button onclick="closeClienteModal()" class="text-2xl leading-none">&times;</button>
+    </div>
+    <form id="cliente-form" class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">Nombre</label>
+          <input type="text" id="cliente-nombre" required class="input">
+        </div>
+        <div>
+          <label class="label">Apellido</label>
+          <input type="text" id="cliente-apellido" class="input">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="label">DNI</label>
+          <input type="text" id="cliente-dni" class="input">
+        </div>
+        <div>
+          <label class="label">Fecha de nacimiento</label>
+          <input type="date" id="cliente-nacimiento" class="input">
+        </div>
+        <div>
+          <label class="label">Teléfono</label>
+          <input type="tel" id="cliente-telefono" class="input">
+        </div>
+      </div>
+      <p class="text-xs opacity-50">Los cambios se aplican a este cliente y se reflejan en todos sus files (aunque los nombres/datos de cada file no se actualizan retroactivamente).</p>
+      <button type="submit" class="btn-primary w-full">Guardar cliente</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: NUEVO / EDITAR FILE ============ -->
 <div id="modal-file" class="modal hidden">
   <div class="modal-card wide">
     <div class="flex justify-between items-center mb-4">
-      <h3 class="font-display text-xl">Nuevo file</h3>
+      <h3 id="file-modal-title" class="font-display text-xl">Nuevo file</h3>
       <button onclick="closeFileModal()" class="text-2xl leading-none">&times;</button>
     </div>
     <form id="file-form" class="space-y-3">
@@ -813,6 +897,12 @@ service cloud.firestore {
         <p class="text-xs opacity-50 mt-1">Si hay saldos pendientes, este file aparecerá en las alertas del Dashboard cuando falten 3 días o menos, o cuando esté vencido.</p>
       </div>
 
+      <div>
+        <label class="label">Saldo a favor con el mayorista (opcional)</label>
+        <input type="number" step="0.01" min="0" id="file-credito-mayorista" class="input" value="0">
+        <p class="text-xs opacity-50 mt-1">Usá esto solo para corregir manualmente un saldo a favor (por ejemplo, si pagaste de más antes de usar esta función). Se resta del saldo pendiente con el mayorista.</p>
+      </div>
+
       <p class="text-sm bg-paper border border-line rounded-lg p-2">
         Comisión estimada: <span id="file-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span>
       </p>
@@ -850,6 +940,7 @@ service cloud.firestore {
       </form>
       <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
         <p class="font-display mb-2">Registrar pago a mayorista</p>
+        <div id="pago-credito-info" class="text-sm mb-2 hidden"></div>
         <label class="label">Monto (<span id="pago-moneda-label">USD</span>)</label>
         <input type="number" step="0.01" min="0" id="pago-monto" required class="input mb-2">
         <label class="label">Caja emisora</label>
@@ -857,6 +948,7 @@ service cloud.firestore {
           <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option>
         </select>
         <button type="submit" class="btn-danger w-full">Registrar pago</button>
+        <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
       </form>
     </div>
 
@@ -875,7 +967,10 @@ service cloud.firestore {
         <tbody id="detail-history-tbody"></tbody>
       </table>
     </div>
-    <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
+    <div class="flex gap-2 flex-wrap">
+      <button id="btn-edit-file" class="btn-ghost">Editar datos del file</button>
+      <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
+    </div>
   </div>
 </div>
 
@@ -893,6 +988,7 @@ const FILE_TABLE_COLS = 14;
 
 let state = { files: [], movs: [], clientes: [], nextFileNo: 1 };
 let currentFileId = null;
+let editingFileId = null;
 let dashCurrency = 'USD';
 let memoryStore = {};
 let storageOK = true;
@@ -1057,12 +1153,14 @@ function vencimientoCellHtml(f){
    ESTADOS DE CUENTA
 ==================================================================== */
 function estadoKey(saldo, total){
-  if(saldo <= 0) return 'pagado';
+  if(saldo < 0) return 'favor';
+  if(saldo === 0) return 'pagado';
   if(total > 0 && saldo < total) return 'parcial';
   return 'pendiente';
 }
 function estadoBadge(saldo, total){
   const k = estadoKey(saldo, total);
+  if(k === 'favor') return `<span class="badge" style="background:#E0E7FF; color:#3730A3">Saldo a favor</span>`;
   if(k === 'pagado') return `<span class="badge badge-pagado">Pagado</span>`;
   if(k === 'parcial') return `<span class="badge badge-parcial">Parcial</span>`;
   return `<span class="badge badge-pendiente">Pendiente</span>`;
@@ -1098,6 +1196,50 @@ function upsertCliente(data){
   state.clientes.push(nuevo);
   return nuevo.id;
 }
+
+let editingClienteId = null;
+function openEditClienteModal(id){
+  const c = state.clientes.find(x=>x.id===id);
+  if(!c) return;
+  editingClienteId = id;
+  document.getElementById('cliente-nombre').value = c.nombre || '';
+  document.getElementById('cliente-apellido').value = c.apellido || '';
+  document.getElementById('cliente-dni').value = c.dni || '';
+  document.getElementById('cliente-nacimiento').value = c.nacimiento || '';
+  document.getElementById('cliente-telefono').value = c.telefono || '';
+  document.getElementById('modal-cliente').classList.remove('hidden');
+}
+function closeClienteModal(){
+  document.getElementById('modal-cliente').classList.add('hidden');
+  editingClienteId = null;
+}
+document.getElementById('cliente-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  const c = state.clientes.find(x=>x.id===editingClienteId);
+  if(!c) return;
+  const nombre = document.getElementById('cliente-nombre').value.trim();
+  if(!nombre){ alert('El nombre es obligatorio.'); return; }
+
+  c.nombre = nombre;
+  c.apellido = document.getElementById('cliente-apellido').value.trim();
+  c.dni = document.getElementById('cliente-dni').value.trim();
+  c.nacimiento = document.getElementById('cliente-nacimiento').value;
+  c.telefono = document.getElementById('cliente-telefono').value.trim();
+
+  // Reflejar los datos actualizados en los files de este cliente
+  state.files.forEach(f=>{
+    if(f.clienteId === c.id){
+      f.clienteNombre = c.nombre;
+      f.clienteApellido = c.apellido;
+      f.clienteDni = c.dni;
+      f.clienteNacimiento = c.nacimiento;
+      f.clienteTelefono = c.telefono;
+    }
+  });
+
+  closeClienteModal();
+  save();
+});
 
 /* ====================================================================
    TABS Y SELECTOR DE MONEDA DEL DASHBOARD
@@ -1295,7 +1437,7 @@ function fileRowHtml(f){
       <td class="py-2 px-3 font-mono-num text-right" style="color:var(--gold)">${fmt(f.comision, f.moneda)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoCliente>0?'var(--terracotta)':'inherit'}">${fmt(f.saldoCliente, f.moneda)}</td>
       <td class="py-2 px-3">${estadoBadge(f.saldoCliente, f.precioVenta)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoMayorista>0?'var(--gold)':'inherit'}">${fmt(f.saldoMayorista, f.moneda)}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoMayorista>0?'var(--gold)':(f.saldoMayorista<0?'#3730A3':'inherit')}">${f.saldoMayorista<0 ? 'A favor ' + fmt(-f.saldoMayorista, f.moneda) : fmt(f.saldoMayorista, f.moneda)}</td>
       <td class="py-2 px-3">${estadoBadge(f.saldoMayorista, f.costoNeto)}</td>
       <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
     </tr>`;
@@ -1407,7 +1549,7 @@ function renderClientes(){
 
   const tbody = document.getElementById('clientes-tbody');
   if(rows.length === 0){
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-sm opacity-50">No hay clientes que coincidan. La base se completa al crear files nuevos.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-sm opacity-50">No hay clientes que coincidan. La base se completa al crear files nuevos.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(c=>{
@@ -1419,14 +1561,15 @@ function renderClientes(){
     if(pendARS !== 0) partesPend.push(fmt(pendARS,'ARS'));
     const pendTxt = partesPend.length ? partesPend.join(' · ') : '—';
     return `
-      <tr class="border-b border-line hover-bg-paper transition cursor-pointer" onclick="document.getElementById('listado-buscar').value=${JSON.stringify(c.nombre)}; switchTab('listado'); renderListado();">
-        <td class="py-2 px-3">${esc(c.nombre)}</td>
+      <tr class="border-b border-line hover-bg-paper transition">
+        <td class="py-2 px-3 cursor-pointer" onclick="document.getElementById('listado-buscar').value=${JSON.stringify(c.nombre)}; switchTab('listado'); renderListado();">${esc(c.nombre)}</td>
         <td class="py-2 px-3">${esc(c.apellido || '—')}</td>
         <td class="py-2 px-3 font-mono-num">${esc(c.dni || '—')}</td>
         <td class="py-2 px-3">${esc(c.nacimiento || '—')}</td>
         <td class="py-2 px-3">${esc(c.telefono || '—')}</td>
         <td class="py-2 px-3 font-mono-num text-center">${files.length}</td>
         <td class="py-2 px-3 font-mono-num text-right" style="color:${(pendUSD>0||pendARS>0)?'var(--terracotta)':'inherit'}">${pendTxt}</td>
+        <td class="py-2 px-3 text-right"><button onclick="openEditClienteModal(${c.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button></td>
       </tr>`;
   }).join('');
 }
@@ -1456,8 +1599,11 @@ function renderHistorial(){
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
-      <td class="py-2 px-3">${CAJA_LABELS[m.caja] || m.caja}</td>
-      <td class="py-2 px-3 text-right"><button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button></td>
+      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
+      <td class="py-2 px-3 text-right">
+        <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
+        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -1477,18 +1623,47 @@ function renderAll(){
    MODAL: NUEVO FILE
 ==================================================================== */
 function openFileModal(){
+  editingFileId = null;
+  document.getElementById('file-modal-title').textContent = 'Nuevo file';
   document.getElementById('file-form').reset();
   document.getElementById('file-fecha').value = todayStr();
   document.getElementById('file-fileno').value = state.nextFileNo;
+  document.getElementById('file-fileno').disabled = false;
   document.getElementById('file-moneda').value = 'USD';
   document.getElementById('file-costo').value = '0';
   document.getElementById('file-precio').value = '0';
   document.getElementById('file-vencimiento').value = '';
+  document.getElementById('file-credito-mayorista').value = '0';
+  updateComisionPreview();
+  document.getElementById('modal-file').classList.remove('hidden');
+}
+function openEditFileModal(id){
+  const f = state.files.find(x=>x.id===id);
+  if(!f) return;
+  editingFileId = id;
+  document.getElementById('file-modal-title').textContent = `Editar file #${f.fileNo}`;
+  document.getElementById('file-fileno').value = f.fileNo;
+  document.getElementById('file-fileno').disabled = true; // el Nº de file no se puede editar para no romper referencias
+  document.getElementById('file-fecha').value = f.fecha;
+  document.getElementById('file-cliente-nombre').value = f.clienteNombre || '';
+  document.getElementById('file-cliente-apellido').value = f.clienteApellido || '';
+  document.getElementById('file-cliente-dni').value = f.clienteDni || '';
+  document.getElementById('file-cliente-nacimiento').value = f.clienteNacimiento || '';
+  document.getElementById('file-cliente-telefono').value = f.clienteTelefono || '';
+  document.getElementById('file-destino').value = f.destino || '';
+  document.getElementById('file-mayorista').value = f.mayorista || '';
+  document.getElementById('file-moneda').value = f.moneda;
+  document.getElementById('file-costo').value = f.costoNeto;
+  document.getElementById('file-precio').value = f.precioVenta;
+  document.getElementById('file-vencimiento').value = f.vencimiento || '';
+  document.getElementById('file-credito-mayorista').value = f.saldoMayorista < 0 ? (-f.saldoMayorista).toFixed(2) : '0';
   updateComisionPreview();
   document.getElementById('modal-file').classList.remove('hidden');
 }
 function closeFileModal(){
   document.getElementById('modal-file').classList.add('hidden');
+  document.getElementById('file-fileno').disabled = false;
+  editingFileId = null;
 }
 function updateComisionPreview(){
   const costo = parseFloat(document.getElementById('file-costo').value) || 0;
@@ -1515,13 +1690,10 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const costoNeto = parseFloat(document.getElementById('file-costo').value) || 0;
   const precioVenta = parseFloat(document.getElementById('file-precio').value) || 0;
   const vencimiento = document.getElementById('file-vencimiento').value || null;
+  const creditoMayoristaManual = parseFloat(document.getElementById('file-credito-mayorista').value) || 0;
 
   if(!fileNo || fileNo <= 0){
     alert('Ingresá un número de file válido.');
-    return;
-  }
-  if(state.files.some(f=>f.fileNo === fileNo)){
-    alert('Ya existe un file con ese número. Elegí otro.');
     return;
   }
   if(!fecha || !clienteNombre || !destino){
@@ -1534,22 +1706,86 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     nacimiento: clienteNacimiento, telefono: clienteTelefono
   });
 
-  const file = {
-    id: Date.now(),
-    fileNo, fecha,
-    clienteId, clienteNombre, clienteApellido, clienteDni, clienteNacimiento, clienteTelefono,
-    destino, mayorista, moneda,
-    costoNeto, precioVenta,
-    comision: precioVenta - costoNeto,
-    saldoCliente: precioVenta,
-    saldoMayorista: costoNeto,
-    vencimiento
-  };
-  state.files.push(file);
-  state.nextFileNo = Math.max(state.nextFileNo, fileNo + 1);
+  if(editingFileId){
+    const f = state.files.find(x=>x.id===editingFileId);
+    if(!f){ closeFileModal(); return; }
+
+    // Recalcular saldos pendientes preservando lo ya cobrado/pagado
+    const cobradoPrevio = f.precioVenta - f.saldoCliente;
+    const pagadoPrevio = f.costoNeto - Math.max(f.saldoMayorista, 0);
+
+    f.fecha = fecha;
+    f.clienteId = clienteId;
+    f.clienteNombre = clienteNombre;
+    f.clienteApellido = clienteApellido;
+    f.clienteDni = clienteDni;
+    f.clienteNacimiento = clienteNacimiento;
+    f.clienteTelefono = clienteTelefono;
+    f.destino = destino;
+    f.mayorista = mayorista;
+    f.moneda = moneda;
+    f.costoNeto = costoNeto;
+    f.precioVenta = precioVenta;
+    f.comision = precioVenta - costoNeto;
+    f.vencimiento = vencimiento;
+    f.saldoCliente = precioVenta - cobradoPrevio;
+    f.saldoMayorista = (costoNeto - pagadoPrevio) - creditoMayoristaManual;
+  } else {
+    if(state.files.some(f=>f.fileNo === fileNo)){
+      alert('Ya existe un file con ese número. Elegí otro.');
+      return;
+    }
+    const file = {
+      id: Date.now(),
+      fileNo, fecha,
+      clienteId, clienteNombre, clienteApellido, clienteDni, clienteNacimiento, clienteTelefono,
+      destino, mayorista, moneda,
+      costoNeto, precioVenta,
+      comision: precioVenta - costoNeto,
+      saldoCliente: precioVenta,
+      saldoMayorista: costoNeto - creditoMayoristaManual,
+      vencimiento
+    };
+    state.files.push(file);
+    state.nextFileNo = Math.max(state.nextFileNo, fileNo + 1);
+  }
+  const wasEditing = editingFileId;
   closeFileModal();
   save();
+  if(wasEditing && currentFileId === wasEditing) openDetail(currentFileId);
 });
+
+/* ====================================================================
+   SALDO A FAVOR CON MAYORISTAS
+   (si en un file se pagó de más al mayorista, saldoMayorista queda
+   negativo. Ese excedente se puede aplicar como pago en otro file
+   del mismo mayorista y la misma moneda, sin mover cajas.)
+==================================================================== */
+function creditoMayoristaDisponible(mayorista, moneda, excludeFileId){
+  if(!mayorista) return 0;
+  return state.files
+    .filter(f => f.mayorista === mayorista && f.moneda === moneda && f.id !== excludeFileId && f.saldoMayorista < 0)
+    .reduce((sum, f) => sum + (-f.saldoMayorista), 0);
+}
+function aplicarCreditoMayorista(fileDestino, monto){
+  // Resta "monto" del saldo a favor disponible, tomándolo de los files
+  // del mismo mayorista/moneda que tengan saldoMayorista negativo (más antiguos primero).
+  // Devuelve { aplicado, fuentes: [{fileId, monto}] } para poder revertir esta operación después.
+  let restante = monto;
+  const fuentes = [];
+  const candidatos = state.files
+    .filter(f => f.mayorista === fileDestino.mayorista && f.moneda === fileDestino.moneda && f.id !== fileDestino.id && f.saldoMayorista < 0)
+    .sort((a,b)=> a.fecha.localeCompare(b.fecha));
+  for(const f of candidatos){
+    if(restante <= 0) break;
+    const disponibleAqui = -f.saldoMayorista;
+    const usar = Math.min(disponibleAqui, restante);
+    f.saldoMayorista += usar;
+    fuentes.push({ fileId: f.id, monto: usar });
+    restante -= usar;
+  }
+  return { aplicado: monto - restante, fuentes };
+}
 
 /* ====================================================================
    MODAL: DETALLE DE FILE (cobros / pagos / vencimiento)
@@ -1580,8 +1816,8 @@ function openDetail(id){
     <div><p class="label">Saldo pendiente cliente</p><p class="font-mono-num font-semibold" style="color:${f.saldoCliente>0?'var(--terracotta)':'var(--green)'}">${fmt(f.saldoCliente, f.moneda)}</p></div>
     <div><p class="label">Estado cliente</p>${estadoBadge(f.saldoCliente, f.precioVenta)}</div>
     <div><p class="label">Pagado al mayorista</p><p class="font-mono-num">${fmt(pagado, f.moneda)}</p></div>
-    <div><p class="label">Saldo pendiente mayorista</p><p class="font-mono-num font-semibold" style="color:${f.saldoMayorista>0?'var(--gold)':'var(--green)'}">${fmt(f.saldoMayorista, f.moneda)}</p></div>
-    <div><p class="label">Estado mayorista</p>${estadoBadge(f.saldoMayorista, f.costoNeto)}</div>
+    <div><p class="label">Saldo pendiente mayorista</p><p class="font-mono-num font-semibold" style="color:${f.saldoMayorista>0?'var(--gold)':(f.saldoMayorista<0?'var(--slate)':'var(--green)')}">${f.saldoMayorista<0 ? 'A favor ' + fmt(-f.saldoMayorista, f.moneda) : fmt(f.saldoMayorista, f.moneda)}</p></div>
+    <div><p class="label">Estado mayorista</p>${f.saldoMayorista<0 ? '<span class="badge" style="background:#E0E7FF; color:#3730A3">Saldo a favor</span>' : estadoBadge(f.saldoMayorista, f.costoNeto)}</div>
   `;
 
   document.getElementById('detail-vencimiento').value = f.vencimiento || '';
@@ -1594,6 +1830,21 @@ function openDetail(id){
 
   document.getElementById('cobro-moneda-label').textContent = f.moneda;
   document.getElementById('pago-moneda-label').textContent = f.moneda;
+
+  const credito = creditoMayoristaDisponible(f.mayorista, f.moneda, f.id);
+  const creditoInfo = document.getElementById('pago-credito-info');
+  const btnCredito = document.getElementById('btn-usar-credito');
+  if(credito > 0 && f.saldoMayorista > 0 && f.mayorista){
+    creditoInfo.classList.remove('hidden');
+    creditoInfo.innerHTML = `Saldo a favor disponible con <strong>${esc(f.mayorista)}</strong>: <span class="font-mono-num" style="color:var(--green)">${fmt(credito, f.moneda)}</span>`;
+    const aplicar = Math.min(credito, f.saldoMayorista);
+    btnCredito.classList.remove('hidden');
+    btnCredito.textContent = `Usar saldo a favor (${fmt(aplicar, f.moneda)})`;
+  } else {
+    creditoInfo.classList.add('hidden');
+    creditoInfo.innerHTML = '';
+    btnCredito.classList.add('hidden');
+  }
 
   document.getElementById('form-cobro').reset();
   document.getElementById('form-pago').reset();
@@ -1626,8 +1877,11 @@ function renderFileHistory(fileId){
       <td class="py-2 px-3">${esc(m.fecha)}</td>
       <td class="py-2 px-3">${esc(m.concepto)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
-      <td class="py-2 px-3">${CAJA_LABELS[m.caja] || m.caja}</td>
-      <td class="py-2 px-3 text-right"><button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button></td>
+      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
+      <td class="py-2 px-3 text-right">
+        <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
+        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -1653,6 +1907,32 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
   openDetail(f.id);
 });
 
+function usarCreditoMayorista(){
+  const f = state.files.find(x=>x.id===currentFileId);
+  if(!f) return;
+  if(f.saldoMayorista <= 0){ alert('Este file no tiene saldo pendiente con el mayorista.'); return; }
+  const credito = creditoMayoristaDisponible(f.mayorista, f.moneda, f.id);
+  if(credito <= 0){ alert('No hay saldo a favor disponible con este mayorista.'); return; }
+
+  const aplicar = Math.min(credito, f.saldoMayorista);
+  if(!confirm(`¿Aplicar ${fmt(aplicar, f.moneda)} de saldo a favor con ${f.mayorista} a este file? No se moverá dinero de ninguna caja.`)) return;
+
+  const resultado = aplicarCreditoMayorista(f, aplicar);
+  f.saldoMayorista -= resultado.aplicado;
+
+  state.movs.push({
+    id: Date.now(),
+    fecha: todayStr(),
+    fileId: f.id,
+    fileNo: f.fileNo,
+    concepto: `Pago a mayorista con saldo a favor — File #${f.fileNo} (${f.mayorista || 'sin especificar'})`,
+    monto: resultado.aplicado, moneda: f.moneda, tipo: 'egreso', caja: null, categoria: 'credito-mayorista',
+    creditoFuentes: resultado.fuentes
+  });
+  save();
+  openDetail(f.id);
+}
+
 document.getElementById('form-pago').addEventListener('submit', function(e){
   e.preventDefault();
   const f = state.files.find(x=>x.id===currentFileId);
@@ -1672,6 +1952,11 @@ document.getElementById('form-pago').addEventListener('submit', function(e){
   });
   save();
   openDetail(f.id);
+});
+
+document.getElementById('btn-edit-file').addEventListener('click', function(){
+  if(!currentFileId) return;
+  openEditFileModal(currentFileId);
 });
 
 document.getElementById('btn-delete-file').addEventListener('click', function(){
@@ -1735,6 +2020,121 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
 });
 
 /* ====================================================================
+   MOVIMIENTOS: REVERTIR EFECTOS SOBRE SALDOS PENDIENTES
+   (usado tanto para eliminar como para editar un movimiento)
+==================================================================== */
+function revertirEfectoMov(m){
+  if(!m.fileId) return;
+  const f = state.files.find(x=>x.id===m.fileId);
+  if(!f) return;
+  if(m.categoria === 'cobro') f.saldoCliente += m.monto;
+  if(m.categoria === 'pago') f.saldoMayorista += m.monto;
+  if(m.categoria === 'credito-mayorista'){
+    f.saldoMayorista += m.monto;
+    (m.creditoFuentes || []).forEach(src=>{
+      const origen = state.files.find(x=>x.id===src.fileId);
+      if(origen) origen.saldoMayorista -= src.monto;
+    });
+  }
+}
+function aplicarEfectoMov(m){
+  if(!m.fileId) return;
+  const f = state.files.find(x=>x.id===m.fileId);
+  if(!f) return;
+  if(m.categoria === 'cobro') f.saldoCliente -= m.monto;
+  if(m.categoria === 'pago') f.saldoMayorista -= m.monto;
+  if(m.categoria === 'credito-mayorista'){
+    // Vuelve a tomar el crédito de las mismas fuentes que tenía originalmente,
+    // si todavía tienen saldo a favor suficiente; el resto queda como saldo pendiente normal.
+    let restante = m.monto;
+    const fuentesNuevas = [];
+    (m.creditoFuentes || []).forEach(src=>{
+      if(restante <= 0) return;
+      const origen = state.files.find(x=>x.id===src.fileId);
+      if(!origen) return;
+      const disponible = Math.max(0, -origen.saldoMayorista);
+      const usar = Math.min(disponible, restante, src.monto);
+      if(usar > 0){
+        origen.saldoMayorista += usar;
+        fuentesNuevas.push({ fileId: src.fileId, monto: usar });
+        restante -= usar;
+      }
+    });
+    f.saldoMayorista -= (m.monto - restante);
+    m.creditoFuentes = fuentesNuevas;
+  }
+}
+
+/* ====================================================================
+   MOVIMIENTOS: EDITAR
+==================================================================== */
+let editingMovId = null;
+function openEditMovModal(id){
+  const m = state.movs.find(x=>x.id===id);
+  if(!m) return;
+  editingMovId = id;
+  document.getElementById('mov-fecha').value = m.fecha;
+  document.getElementById('mov-concepto').value = m.concepto;
+  document.getElementById('mov-monto').value = m.monto;
+  document.getElementById('mov-moneda').value = m.moneda;
+
+  const cajaWrap = document.getElementById('mov-caja-wrap');
+  const info = document.getElementById('mov-tipo-info');
+  if(m.caja){
+    cajaWrap.classList.remove('hidden');
+    document.getElementById('mov-caja').value = m.caja;
+  } else {
+    cajaWrap.classList.add('hidden');
+  }
+
+  if(m.categoria === 'cobro' || m.categoria === 'pago' || m.categoria === 'credito-mayorista'){
+    info.textContent = 'Este movimiento está asociado a un file. Si cambiás el monto, el saldo pendiente del file se ajustará automáticamente.';
+  } else {
+    info.textContent = '';
+  }
+
+  document.getElementById('modal-mov').classList.remove('hidden');
+}
+function closeMovModal(){
+  document.getElementById('modal-mov').classList.add('hidden');
+  editingMovId = null;
+}
+document.getElementById('mov-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  const m = state.movs.find(x=>x.id===editingMovId);
+  if(!m) return;
+
+  const fecha = document.getElementById('mov-fecha').value;
+  const concepto = document.getElementById('mov-concepto').value.trim();
+  const monto = parseFloat(document.getElementById('mov-monto').value);
+  const moneda = document.getElementById('mov-moneda').value;
+  const caja = m.caja ? document.getElementById('mov-caja').value : m.caja;
+
+  if(!fecha || !concepto || !monto || monto <= 0){
+    alert('Completá fecha, concepto y un monto válido.');
+    return;
+  }
+  if(m.categoria === 'credito-mayorista' && moneda !== m.moneda){
+    alert('No se puede cambiar la moneda de un movimiento de saldo a favor con mayorista.');
+    return;
+  }
+
+  // Revertir el efecto anterior sobre saldos pendientes, aplicar los nuevos valores,
+  // y volver a aplicar el efecto con los datos actualizados.
+  revertirEfectoMov(m);
+  m.fecha = fecha;
+  m.concepto = concepto;
+  m.monto = monto;
+  m.moneda = moneda;
+  if(m.caja) m.caja = caja;
+  aplicarEfectoMov(m);
+
+  closeMovModal();
+  save();
+  if(currentFileId) renderFileHistory(currentFileId);
+});
+
+/* ====================================================================
    MOVIMIENTOS: ELIMINAR (revierte saldos pendientes)
 ==================================================================== */
 function deleteMov(id){
@@ -1742,14 +2142,7 @@ function deleteMov(id){
   const idx = state.movs.findIndex(m=>m.id===id);
   if(idx === -1) return;
   const m = state.movs[idx];
-
-  if(m.fileId){
-    const f = state.files.find(x=>x.id===m.fileId);
-    if(f){
-      if(m.categoria === 'cobro') f.saldoCliente += m.monto;
-      if(m.categoria === 'pago') f.saldoMayorista += m.monto;
-    }
-  }
+  revertirEfectoMov(m);
   state.movs.splice(idx,1);
   save();
   if(currentFileId) renderFileHistory(currentFileId);
