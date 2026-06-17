@@ -826,7 +826,7 @@ service cloud.firestore {
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="label">Nº de file</label>
-          <input type="number" step="1" min="1" id="file-fileno" required class="input">
+          <input type="text" id="file-fileno" required class="input" placeholder="Ej: 1001, A-25, MAR-001...">
         </div>
         <div>
           <label class="label">Fecha</label>
@@ -1070,6 +1070,11 @@ function load(){
 /* ====================================================================
    UTILIDADES
 ==================================================================== */
+function sortFileNo(a, b){
+  const na = parseFloat(a); const nb = parseFloat(b);
+  if(!isNaN(na) && !isNaN(nb)) return na - nb;
+  return String(a).localeCompare(String(b), 'es', { numeric: true });
+}
 function fmt(n, moneda){
   const sym = MONEDA_SYM[moneda] || '$';
   return sym + ' ' + (Number(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1453,7 +1458,7 @@ function renderFilesTable(){
     return;
   }
   const filtro = document.getElementById('filter-files-estado').value;
-  let rows = [...state.files].sort((a,b)=> a.fileNo - b.fileNo);
+  let rows = [...state.files].sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
   if(filtro === 'cliente-pendiente') rows = rows.filter(f=>f.saldoCliente > 0);
   if(filtro === 'mayorista-pendiente') rows = rows.filter(f=>f.saldoMayorista > 0);
   if(filtro === 'sin-deuda') rows = rows.filter(f=>f.saldoCliente <= 0 && f.saldoMayorista <= 0);
@@ -1522,7 +1527,7 @@ function renderListado(){
   if(desde) rows = rows.filter(f=>f.fecha >= desde);
   if(hasta) rows = rows.filter(f=>f.fecha <= hasta);
 
-  rows.sort((a,b)=> a.fileNo - b.fileNo);
+  rows.sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
 
   const tbody = document.getElementById('listado-tbody');
   if(rows.length === 0){
@@ -1677,7 +1682,7 @@ document.getElementById('file-moneda').addEventListener('change', updateComision
 
 document.getElementById('file-form').addEventListener('submit', function(e){
   e.preventDefault();
-  const fileNo = parseInt(document.getElementById('file-fileno').value, 10);
+  const fileNo = document.getElementById('file-fileno').value.trim();
   const fecha = document.getElementById('file-fecha').value;
   const clienteNombre = document.getElementById('file-cliente-nombre').value.trim();
   const clienteApellido = document.getElementById('file-cliente-apellido').value.trim();
@@ -1692,8 +1697,8 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const vencimiento = document.getElementById('file-vencimiento').value || null;
   const creditoMayoristaManual = parseFloat(document.getElementById('file-credito-mayorista').value) || 0;
 
-  if(!fileNo || fileNo <= 0){
-    alert('Ingresá un número de file válido.');
+  if(!fileNo){
+    alert('Ingresá un número o código de file válido.');
     return;
   }
   if(!fecha || !clienteNombre || !destino){
@@ -1747,7 +1752,10 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       vencimiento
     };
     state.files.push(file);
-    state.nextFileNo = Math.max(state.nextFileNo, fileNo + 1);
+    const numericVal = parseInt(fileNo, 10);
+    if(!isNaN(numericVal) && String(numericVal) === fileNo){
+      state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
+    }
   }
   const wasEditing = editingFileId;
   closeFileModal();
@@ -2220,7 +2228,10 @@ function importData(evt){
       state.files = data.files;
       state.movs = data.movs;
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
-      const maxNo = state.files.reduce((max,f)=>Math.max(max, f.fileNo||0), 0);
+      const maxNo = state.files.reduce((max,f)=>{
+        const n = parseInt(f.fileNo, 10);
+        return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
+      }, 0);
       state.nextFileNo = data.nextFileNo || (maxNo + 1);
       save();
       alert('Datos importados correctamente.');

@@ -398,6 +398,7 @@
           <option value="pendiente">Pendiente</option>
           <option value="parcial">Parcial</option>
           <option value="pagado">Pagado</option>
+          <option value="favor">Saldo a favor</option>
         </select>
       </div>
       <div>
@@ -577,6 +578,11 @@ function load(){
 /* ====================================================================
    UTILIDADES
 ==================================================================== */
+function sortFileNo(a, b){
+  const na = parseFloat(a); const nb = parseFloat(b);
+  if(!isNaN(na) && !isNaN(nb)) return na - nb;
+  return String(a).localeCompare(String(b), 'es', { numeric: true });
+}
 function fmt(n, moneda){
   const sym = MONEDA_SYM[moneda] || '$';
   return sym + ' ' + (Number(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -660,12 +666,14 @@ function vencimientoCellHtml(f){
    ESTADOS DE CUENTA
 ==================================================================== */
 function estadoKey(saldo, total){
-  if(saldo <= 0) return 'pagado';
+  if(saldo < 0) return 'favor';
+  if(saldo === 0) return 'pagado';
   if(total > 0 && saldo < total) return 'parcial';
   return 'pendiente';
 }
 function estadoBadge(saldo, total){
   const k = estadoKey(saldo, total);
+  if(k === 'favor') return `<span class="badge" style="background:#E0E7FF; color:#3730A3">Saldo a favor</span>`;
   if(k === 'pagado') return `<span class="badge badge-pagado">Pagado</span>`;
   if(k === 'parcial') return `<span class="badge badge-parcial">Parcial</span>`;
   return `<span class="badge badge-pendiente">Pendiente</span>`;
@@ -895,7 +903,7 @@ function fileRowHtml(f){
       <td class="py-2 px-3 font-mono-num text-right" style="color:var(--gold)">${fmt(f.comision, f.moneda)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoCliente>0?'var(--terracotta)':'inherit'}">${fmt(f.saldoCliente, f.moneda)}</td>
       <td class="py-2 px-3">${estadoBadge(f.saldoCliente, f.precioVenta)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoMayorista>0?'var(--gold)':'inherit'}">${fmt(f.saldoMayorista, f.moneda)}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="color:${f.saldoMayorista>0?'var(--gold)':(f.saldoMayorista<0?'#3730A3':'inherit')}">${f.saldoMayorista<0 ? 'A favor ' + fmt(-f.saldoMayorista, f.moneda) : fmt(f.saldoMayorista, f.moneda)}</td>
       <td class="py-2 px-3">${estadoBadge(f.saldoMayorista, f.costoNeto)}</td>
       <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
     </tr>`;
@@ -958,7 +966,7 @@ function renderListado(){
   if(desde) rows = rows.filter(f=>f.fecha >= desde);
   if(hasta) rows = rows.filter(f=>f.fecha <= hasta);
 
-  rows.sort((a,b)=> a.fileNo - b.fileNo);
+  rows.sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
 
   const tbody = document.getElementById('listado-tbody');
   if(rows.length === 0){
