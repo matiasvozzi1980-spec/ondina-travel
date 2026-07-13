@@ -540,6 +540,10 @@
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
       <h2 class="font-display text-2xl">Cuentas corrientes</h2>
       <div class="flex gap-2 flex-wrap items-center">
+        <button onclick="enviarWhatsApp()" class="btn-primary" style="background:#25D366; display:flex; align-items:center; gap:6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Enviar por WhatsApp
+        </button>
         <select id="cc-filtro-moneda" onchange="renderCuentas()" class="input w-auto">
           <option value="todas">USD y ARS</option>
           <option value="USD">Solo USD</option>
@@ -558,7 +562,7 @@
     </div>
 
     <!-- Totales resumen -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" id="cc-totales"></div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" id="cc-totales" style="display:none"></div>
 
     <!-- Saldos por cliente -->
     <div id="cc-clientes-wrap">
@@ -609,24 +613,6 @@
             </tr>
           </thead>
           <tbody id="cc-mayoristas-tbody"></tbody>
-        </table>
-      </div>
-
-      <!-- Resumen agrupado por mayorista -->
-      <h3 class="font-display text-xl mb-3">Resumen por mayorista</h3>
-      <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-              <th class="py-2 px-3">Mayorista</th>
-              <th class="py-2 px-3 text-center">Files</th>
-              <th class="py-2 px-3 text-right">Total a pagar</th>
-              <th class="py-2 px-3 text-right">Ya pagado</th>
-              <th class="py-2 px-3 text-right">Saldo pendiente</th>
-              <th class="py-2 px-3 text-right">Saldo a favor</th>
-            </tr>
-          </thead>
-          <tbody id="cc-resumen-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -1754,6 +1740,70 @@ function renderHistorial(){
 /* ====================================================================
    RENDER: CUENTAS CORRIENTES
 ==================================================================== */
+function enviarWhatsApp(){
+  const numero = prompt('¿A qué número enviás el resumen?\n(incluí código de país, sin + ni espacios, ej: 5491112345678)');
+  if(!numero) return;
+
+  const filtroMoneda = document.getElementById('cc-filtro-moneda').value;
+  const filtroEstado = document.getElementById('cc-filtro-estado').value;
+
+  let files = [...state.files];
+  if(filtroMoneda !== 'todas') files = files.filter(f=>f.moneda === filtroMoneda);
+
+  const clientesPend = files
+    .filter(f=>f.saldoCliente > 0)
+    .sort((a,b)=>b.saldoCliente-a.saldoCliente);
+  const mayoristasPend = files
+    .filter(f=>f.saldoMayorista > 0)
+    .sort((a,b)=>b.saldoMayorista-a.saldoMayorista);
+
+  const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  let msg = `*Ondina Travel — Cuentas corrientes al ${hoy}*\n`;
+
+  if(clientesPend.length > 0){
+    msg += `\n🔴 *LO QUE NOS DEBEN LOS CLIENTES*\n`;
+    clientesPend.forEach(f=>{
+      const cobrado = f.precioVenta - f.saldoCliente;
+      const pct = f.precioVenta>0 ? Math.round(cobrado/f.precioVenta*100) : 0;
+      msg += `• File #${f.fileNo} — ${clienteNombreCompleto(f)} (${f.destino})\n`;
+      msg += `  Saldo pendiente: *${fmt(f.saldoCliente, f.moneda)}* (${pct}% cobrado)`;
+      if(f.vencimiento) msg += ` | Vence: ${f.vencimiento}`;
+      msg += `\n`;
+    });
+    const totalUSD = clientesPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoCliente,0);
+    const totalARS = clientesPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoCliente,0);
+    msg += `  _Total por cobrar:_`;
+    if(totalUSD>0) msg += ` ${fmt(totalUSD,'USD')}`;
+    if(totalARS>0) msg += ` ${fmt(totalARS,'ARS')}`;
+    msg += `\n`;
+  } else {
+    msg += `\n✅ *Sin saldos pendientes de clientes*\n`;
+  }
+
+  if(mayoristasPend.length > 0){
+    msg += `\n🟡 *LO QUE LE DEBEMOS A LOS MAYORISTAS*\n`;
+    mayoristasPend.forEach(f=>{
+      const pagado = f.costoNeto - f.saldoMayorista;
+      const pct = f.costoNeto>0 ? Math.round(pagado/f.costoNeto*100) : 0;
+      msg += `• File #${f.fileNo} — ${f.mayorista||'Sin especificar'} (${clienteNombreCompleto(f)})\n`;
+      msg += `  Saldo pendiente: *${fmt(f.saldoMayorista, f.moneda)}* (${pct}% pagado)`;
+      if(f.vencimiento) msg += ` | Vence: ${f.vencimiento}`;
+      msg += `\n`;
+    });
+    const totalUSD = mayoristasPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoMayorista,0);
+    const totalARS = mayoristasPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoMayorista,0);
+    msg += `  _Total por pagar:_`;
+    if(totalUSD>0) msg += ` ${fmt(totalUSD,'USD')}`;
+    if(totalARS>0) msg += ` ${fmt(totalARS,'ARS')}`;
+    msg += `\n`;
+  } else {
+    msg += `\n✅ *Sin deudas con mayoristas*\n`;
+  }
+
+  const url = `https://wa.me/${numero.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
 function renderCuentas(){
   const filtroMoneda = document.getElementById('cc-filtro-moneda').value;
   const filtroTipo = document.getElementById('cc-filtro-tipo').value;
@@ -1769,37 +1819,13 @@ function renderCuentas(){
   if(filtroMoneda !== 'todas') files = files.filter(f=>f.moneda === filtroMoneda);
 
   // ---- TOTALES RESUMEN ----
-  const totUSD = { porCobrar:0, porPagar:0, aFavor:0 };
-  const totARS = { porCobrar:0, porPagar:0, aFavor:0 };
+  const totUSD = { porCobrar:0, porPagar:0 };
+  const totARS = { porCobrar:0, porPagar:0 };
   state.files.forEach(f=>{
     const t = f.moneda === 'USD' ? totUSD : totARS;
     if(f.saldoCliente > 0) t.porCobrar += f.saldoCliente;
     if(f.saldoMayorista > 0) t.porPagar += f.saldoMayorista;
-    if(f.saldoMayorista < 0) t.aFavor += (-f.saldoMayorista);
   });
-  const monedas = filtroMoneda === 'todas' ? ['USD','ARS'] : [filtroMoneda];
-  const totalesEl = document.getElementById('cc-totales');
-  totalesEl.innerHTML = monedas.flatMap(m => {
-    const t = m === 'USD' ? totUSD : totARS;
-    return [
-      `<div class="bg-white rounded-xl border border-line p-4">
-        <p class="text-xs uppercase tracking-widest opacity-50">Por cobrar (${m})</p>
-        <p class="font-mono-num text-xl font-semibold mt-1" style="color:var(--terracotta)">${fmt(t.porCobrar,m)}</p>
-        <p class="text-xs opacity-50 mt-1">Clientes con deuda</p>
-      </div>`,
-      `<div class="bg-white rounded-xl border border-line p-4">
-        <p class="text-xs uppercase tracking-widest opacity-50">Por pagar (${m})</p>
-        <p class="font-mono-num text-xl font-semibold mt-1" style="color:var(--gold)">${fmt(t.porPagar,m)}</p>
-        <p class="text-xs opacity-50 mt-1">Deuda con mayoristas</p>
-      </div>`,
-      `<div class="bg-white rounded-xl border border-line p-4">
-        <p class="text-xs uppercase tracking-widest opacity-50">Saldo a favor (${m})</p>
-        <p class="font-mono-num text-xl font-semibold mt-1" style="color:#3730A3">${fmt(t.aFavor,m)}</p>
-        <p class="text-xs opacity-50 mt-1">Crédito con mayoristas</p>
-      </div>`
-    ];
-  }).join('');
-
   // ---- CLIENTES ----
   let clienteFiles = filtroEstado === 'pendientes'
     ? files.filter(f=>f.saldoCliente > 0)
@@ -1881,39 +1907,6 @@ function renderCuentas(){
         <td class="py-2 px-3 font-mono-num text-right">${saldoTxt}</td>
         <td class="py-2 px-3 text-right">${progressBar} <span class="text-xs opacity-60">${pct}%</span></td>
         <td class="py-2 px-3"><span class="badge" style="background:${estadoColor}20;color:${estadoColor}">${estadoStr}</span></td>
-      </tr>`;
-    }).join('');
-  }
-
-  // ---- RESUMEN AGRUPADO POR MAYORISTA ----
-  const resumenMap = {};
-  files.forEach(f=>{
-    if(!f.mayorista) return;
-    const key = `${f.mayorista}||${f.moneda}`;
-    if(!resumenMap[key]) resumenMap[key] = { mayorista:f.mayorista, moneda:f.moneda, filesCount:0, totalCosto:0, totalPagado:0, pendiente:0, aFavor:0 };
-    const r = resumenMap[key];
-    r.filesCount++;
-    r.totalCosto += f.costoNeto;
-    const pagado = f.costoNeto - Math.max(f.saldoMayorista, 0);
-    r.totalPagado += pagado;
-    if(f.saldoMayorista > 0) r.pendiente += f.saldoMayorista;
-    if(f.saldoMayorista < 0) r.aFavor += (-f.saldoMayorista);
-  });
-  const resumenRows = Object.values(resumenMap).sort((a,b)=> b.pendiente - a.pendiente);
-  const tbodyR = document.getElementById('cc-resumen-tbody');
-  if(resumenRows.length === 0){
-    tbodyR.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-sm opacity-50">No hay mayoristas con archivos registrados.</td></tr>`;
-  } else {
-    tbodyR.innerHTML = resumenRows.map(r=>{
-      const pendColor = r.pendiente > 0 ? 'var(--gold)' : 'inherit';
-      const favColor = r.aFavor > 0 ? '#3730A3' : 'inherit';
-      return `<tr class="border-b border-line hover-bg-paper transition">
-        <td class="py-2 px-3 font-semibold">${esc(r.mayorista)} <span class="badge ml-1" style="background:#E5E7EB;color:#374151">${r.moneda}</span></td>
-        <td class="py-2 px-3 font-mono-num text-center">${r.filesCount}</td>
-        <td class="py-2 px-3 font-mono-num text-right">${fmt(r.totalCosto, r.moneda)}</td>
-        <td class="py-2 px-3 font-mono-num text-right" style="color:var(--green)">${fmt(r.totalPagado, r.moneda)}</td>
-        <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:${pendColor}">${r.pendiente > 0 ? fmt(r.pendiente, r.moneda) : '—'}</td>
-        <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:${favColor}">${r.aFavor > 0 ? fmt(r.aFavor, r.moneda) : '—'}</td>
       </tr>`;
     }).join('');
   }
