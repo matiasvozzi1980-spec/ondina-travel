@@ -222,6 +222,7 @@
     .lg\:grid-cols-6{ grid-template-columns:repeat(6,minmax(0,1fr)); }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -338,8 +339,14 @@
       <div id="alertas-wrap"></div>
     </div>
 
-    <div class="flex items-center gap-2 mb-3">
+    <div class="flex flex-wrap items-center gap-2 mb-3">
       <h2 class="font-display text-xl opacity-80 mr-auto">Métricas clave</h2>
+      <div class="flex border border-line rounded-lg overflow-hidden">
+        <button class="toggle-btn active" data-period="todo" onclick="setDashPeriod('todo')">Todo</button>
+        <button class="toggle-btn" data-period="mes" onclick="setDashPeriod('mes')">Este mes</button>
+        <button class="toggle-btn" data-period="trim" onclick="setDashPeriod('trim')">Este trimestre</button>
+        <button class="toggle-btn" data-period="anio" onclick="setDashPeriod('anio')">Este año</button>
+      </div>
       <div class="flex border border-line rounded-lg overflow-hidden">
         <button class="toggle-btn active" data-currency="USD" onclick="setDashCurrency('USD')">USD</button>
         <button class="toggle-btn" data-currency="ARS" onclick="setDashCurrency('ARS')">ARS</button>
@@ -365,17 +372,6 @@
       <div class="bg-white rounded-xl border border-line p-4">
         <p class="text-xs uppercase tracking-widest opacity-50">Por pagar</p>
         <p id="m-porpagar" class="font-mono-num text-lg sm:text-xl font-semibold mt-1" style="color:var(--slate)">$0.00</p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div class="bg-white rounded-xl border border-line p-4">
-        <h3 class="font-display text-lg mb-2">Esquema financiero — saldo por caja (USD y ARS)</h3>
-        <div class="chart-wrap"><canvas id="chart-cajas"></canvas></div>
-      </div>
-      <div class="bg-white rounded-xl border border-line p-4">
-        <h3 id="chart-ventas-title" class="font-display text-lg mb-2">Rendimiento de ventas por mes (USD)</h3>
-        <div class="chart-wrap"><canvas id="chart-ventas"></canvas></div>
       </div>
     </div>
   </section>
@@ -540,9 +536,9 @@
     <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
       <h2 class="font-display text-2xl">Cuentas corrientes</h2>
       <div class="flex gap-2 flex-wrap items-center">
-        <button onclick="enviarWhatsApp()" class="btn-primary" style="background:#25D366; display:flex; align-items:center; gap:6px;">
+        <button onclick="enviarWhatsApp()" id="btn-whatsapp" class="btn-primary" style="background:#25D366; display:flex; align-items:center; gap:6px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          Enviar por WhatsApp
+          <span id="btn-whatsapp-label">Descargar imagen y abrir WhatsApp</span>
         </button>
         <select id="cc-filtro-moneda" onchange="renderCuentas()" class="input w-auto">
           <option value="todas">USD y ARS</option>
@@ -1090,6 +1086,26 @@ let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
+let dashPeriod = 'todo';
+
+function periodRange(){
+  const hoy = todayStr();
+  const [y, m] = hoy.split('-').map(Number);
+  if(dashPeriod === 'mes'){
+    const desde = `${y}-${String(m).padStart(2,'0')}-01`;
+    const hasta = hoy;
+    return { desde, hasta };
+  }
+  if(dashPeriod === 'trim'){
+    const trimStart = Math.floor((m-1)/3)*3+1;
+    const desde = `${y}-${String(trimStart).padStart(2,'0')}-01`;
+    return { desde, hasta: hoy };
+  }
+  if(dashPeriod === 'anio'){
+    return { desde: `${y}-01-01`, hasta: hoy };
+  }
+  return { desde: null, hasta: null };
+}
 let memoryStore = {};
 let storageOK = true;
 
@@ -1197,35 +1213,26 @@ function cajaBalance(caja, moneda){
 }
 function totals(moneda){
   let ventas=0, costos=0, comisiones=0, porCobrar=0, porPagar=0;
-  state.files.filter(f=>f.moneda===moneda).forEach(f=>{
-    ventas += f.precioVenta;
-    costos += f.costoNeto;
-    comisiones += f.comision;
-    porCobrar += f.saldoCliente;
-    porPagar += f.saldoMayorista;
-  });
+  const { desde, hasta } = periodRange();
+  state.files
+    .filter(f=>{
+      if(f.moneda !== moneda) return false;
+      if(desde && f.fecha < desde) return false;
+      if(hasta && f.fecha > hasta) return false;
+      return true;
+    })
+    .forEach(f=>{
+      ventas += f.precioVenta;
+      costos += f.costoNeto;
+      comisiones += f.comision;
+      porCobrar += f.saldoCliente;
+      porPagar += Math.max(f.saldoMayorista, 0);
+    });
   return {ventas, costos, comisiones, porCobrar, porPagar};
 }
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-function formatMonth(ym){
-  const [y,m] = ym.split('-');
-  return `${MESES[parseInt(m,10)-1]} '${y.slice(2)}`;
-}
-function monthlyData(moneda){
-  const map = {};
-  state.files.filter(f=>f.moneda===moneda).forEach(f=>{
-    const month = (f.fecha || '0000-00').slice(0,7);
-    if(!map[month]) map[month] = {ventas:0, comisiones:0};
-    map[month].ventas += f.precioVenta;
-    map[month].comisiones += f.comision;
-  });
-  const months = Object.keys(map).sort();
-  return {
-    labels: months.map(formatMonth),
-    ventas: months.map(m=>map[m].ventas),
-    comisiones: months.map(m=>map[m].comisiones)
-  };
-}
+
+
 
 /* ====================================================================
    VENCIMIENTOS Y ALARMAS
@@ -1353,9 +1360,6 @@ function switchTab(name){
   document.querySelectorAll('.tab-section').forEach(s=>s.classList.add('hidden'));
   document.getElementById('tab-'+name).classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-  if(name === 'dashboard'){
-    renderCharts();
-  }
   if(name === 'cuentas'){
     renderCuentas();
   }
@@ -1363,6 +1367,11 @@ function switchTab(name){
 function setDashCurrency(c){
   dashCurrency = c;
   document.querySelectorAll('.toggle-btn[data-currency]').forEach(b=>b.classList.toggle('active', b.dataset.currency===c));
+  renderDashboard();
+}
+function setDashPeriod(p){
+  dashPeriod = p;
+  document.querySelectorAll('.toggle-btn[data-period]').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
   renderDashboard();
 }
 
@@ -1385,116 +1394,6 @@ function renderDashboard(){
   document.getElementById('m-porpagar').textContent = fmt(t.porPagar, dashCurrency);
 
   renderAlertas();
-  renderCharts();
-}
-
-/* ====================================================================
-   GRÁFICOS (canvas nativo, sin dependencias externas)
-==================================================================== */
-function setupCanvas(canvas){
-  const wrap = canvas.parentElement;
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.max(wrap.clientWidth, 240);
-  const h = Math.max(wrap.clientHeight, 200);
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-  return { ctx, w, h };
-}
-function niceScale(maxVal){
-  if(maxVal <= 0) return 1;
-  const exp = Math.floor(Math.log10(maxVal));
-  const base = Math.pow(10, exp);
-  const norm = maxVal / base;
-  let nice;
-  if(norm <= 1) nice = 1; else if(norm <= 2) nice = 2; else if(norm <= 5) nice = 5; else nice = 10;
-  return nice * base;
-}
-function drawGroupedBarChart(canvas, labels, datasets){
-  if(!canvas || canvas.offsetParent === null) return; // tab oculta: no dibujar
-  const { ctx, w, h } = setupCanvas(canvas);
-  const padding = { top: 16, right: 12, bottom: 36, left: 56, legend: 26 };
-  const chartW = Math.max(w - padding.left - padding.right, 10);
-  const chartH = Math.max(h - padding.top - padding.bottom - padding.legend, 10);
-
-  let maxVal = 0;
-  datasets.forEach(ds => ds.data.forEach(v => { if(Math.abs(v) > maxVal) maxVal = Math.abs(v); }));
-  const scale = niceScale(maxVal || 1);
-
-  ctx.font = '11px Inter, sans-serif';
-  ctx.lineWidth = 1;
-
-  // líneas guía horizontales + etiquetas del eje Y
-  const steps = 4;
-  for(let i=0;i<=steps;i++){
-    const val = scale * i / steps;
-    const y = padding.top + chartH - (val/scale)*chartH;
-    ctx.strokeStyle = '#E5E5E5';
-    ctx.beginPath();
-    ctx.moveTo(padding.left, y);
-    ctx.lineTo(padding.left + chartW, y);
-    ctx.stroke();
-    ctx.fillStyle = '#6B7280';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(Math.round(val).toLocaleString('es-AR'), padding.left - 6, y);
-  }
-
-  // barras
-  const n = Math.max(labels.length, 1);
-  const groupW = chartW / n;
-  const barCount = datasets.length;
-  const barW = Math.max(8, Math.min(34, (groupW * 0.62) / barCount));
-
-  labels.forEach((label, i)=>{
-    const groupX = padding.left + i*groupW + groupW/2;
-    datasets.forEach((ds, j)=>{
-      const val = ds.data[i] || 0;
-      const barH = (Math.abs(val) / scale) * chartH;
-      const x = groupX - (barCount*barW)/2 + j*barW;
-      const y = padding.top + chartH - barH;
-      ctx.fillStyle = ds.color;
-      ctx.fillRect(x, val>=0 ? y : padding.top + chartH, Math.max(barW-3,1), Math.max(barH,1));
-    });
-    ctx.fillStyle = '#374151';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(label, groupX, padding.top + chartH + 8);
-  });
-
-  // leyenda
-  let legendX = padding.left;
-  const legendY = h - 10;
-  datasets.forEach(ds=>{
-    ctx.fillStyle = ds.color;
-    ctx.fillRect(legendX, legendY-9, 10, 10);
-    ctx.fillStyle = '#374151';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const label = `${ds.label}`;
-    ctx.fillText(label, legendX+14, legendY-3);
-    legendX += ctx.measureText(label).width + 36;
-  });
-}
-function renderCharts(){
-  const usdData = CAJAS.map(c=>cajaBalance(c,'USD'));
-  const arsData = CAJAS.map(c=>cajaBalance(c,'ARS'));
-  const cajaLabels = CAJAS.map(c=>CAJA_LABELS[c]);
-  drawGroupedBarChart(document.getElementById('chart-cajas'), cajaLabels, [
-    { label:'USD', data:usdData, color:'#374151' },
-    { label:'ARS', data:arsData, color:'#9CA3AF' }
-  ]);
-
-  const md = monthlyData(dashCurrency);
-  document.getElementById('chart-ventas-title').textContent = `Rendimiento de ventas por mes (${dashCurrency})`;
-  drawGroupedBarChart(document.getElementById('chart-ventas'), md.labels, [
-    { label:'Ventas', data: md.ventas, color:'#374151' },
-    { label:'Comisiones', data: md.comisiones, color:'#B45309' }
-  ]);
 }
 
 function renderAlertas(){
@@ -1740,68 +1639,141 @@ function renderHistorial(){
 /* ====================================================================
    RENDER: CUENTAS CORRIENTES
 ==================================================================== */
-function enviarWhatsApp(){
-  const numero = prompt('¿A qué número enviás el resumen?\n(incluí código de país, sin + ni espacios, ej: 5491112345678)');
-  if(!numero) return;
+const WA_NUMERO = '5493346541097'; // número fijo: +54 9 3462 54-1097
 
+async function enviarWhatsApp(){
+  const btn = document.getElementById('btn-whatsapp');
+  const label = document.getElementById('btn-whatsapp-label');
+
+  // Si html2canvas no está disponible (sin internet), enviamos solo texto
+  if(typeof html2canvas === 'undefined'){
+    enviarWhatsAppTexto();
+    return;
+  }
+
+  label.textContent = 'Generando imagen...';
+  btn.style.opacity = '0.7';
+  btn.disabled = true;
+
+  try{
+    const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+    // Crear un contenedor temporal con fondo blanco para capturar
+    const contenedor = document.createElement('div');
+    contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:24px;font-family:Inter,sans-serif;width:900px;';
+
+    // Encabezado
+    contenedor.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:2px solid #1F2937;padding-bottom:14px;">
+        <div>
+          <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Ondina Travel</div>
+          <div style="font-size:11px;color:#6B7280;letter-spacing:0.2em;text-transform:uppercase;margin-top:2px;">Cuentas corrientes al ${hoy}</div>
+        </div>
+      </div>`;
+
+    // Clonar las tablas de cuentas
+    const seccion = document.getElementById('tab-cuentas');
+    const clonar = seccion.cloneNode(true);
+
+    // Quitar la barra de botones/filtros del clon
+    const headerClon = clonar.querySelector('.flex.flex-wrap.justify-between');
+    if(headerClon) headerClon.remove();
+
+    // Aplicar estilos inline para captura fiel
+    clonar.style.cssText = 'display:block;';
+    clonar.querySelectorAll('table').forEach(t=>{
+      t.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;';
+    });
+    clonar.querySelectorAll('th').forEach(el=>{
+      el.style.cssText = 'padding:7px 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;';
+    });
+    clonar.querySelectorAll('td').forEach(el=>{
+      el.style.cssText = 'padding:8px 10px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;';
+    });
+    clonar.querySelectorAll('tr.row-selected').forEach(el=>{
+      el.classList.remove('row-selected');
+    });
+    clonar.querySelectorAll('.bg-white.rounded-xl').forEach(el=>{
+      el.style.cssText = 'border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:20px;';
+    });
+    clonar.querySelectorAll('h3.font-display').forEach(el=>{
+      el.style.cssText = 'font-family:Georgia,serif;font-size:17px;margin-bottom:10px;font-weight:600;';
+    });
+
+    contenedor.appendChild(clonar);
+    document.body.appendChild(contenedor);
+
+    const canvas = await html2canvas(contenedor, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+
+    document.body.removeChild(contenedor);
+
+    // Descargar la imagen
+    const link = document.createElement('a');
+    link.download = `ondina-travel-cuentas-${hoy.replace(/\//g,'-')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    // Esperar un momento y abrir WhatsApp
+    await new Promise(r => setTimeout(r, 800));
+
+    const msg = `Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ${hoy}. Adjunto la imagen descargada.`;
+    window.open(`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    label.textContent = '✓ ¡Imagen descargada! Pegala en WhatsApp';
+    btn.style.background = '#15803D';
+    setTimeout(()=>{
+      label.textContent = 'Descargar imagen y abrir WhatsApp';
+      btn.style.background = '#25D366';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    }, 3500);
+
+  } catch(err){
+    console.error(err);
+    label.textContent = 'Error — enviando como texto...';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+    setTimeout(()=>enviarWhatsAppTexto(), 600);
+  }
+}
+
+// Fallback: solo texto (sin imagen, sin internet para html2canvas)
+function enviarWhatsAppTexto(){
   const filtroMoneda = document.getElementById('cc-filtro-moneda').value;
-  const filtroEstado = document.getElementById('cc-filtro-estado').value;
-
   let files = [...state.files];
   if(filtroMoneda !== 'todas') files = files.filter(f=>f.moneda === filtroMoneda);
-
-  const clientesPend = files
-    .filter(f=>f.saldoCliente > 0)
-    .sort((a,b)=>b.saldoCliente-a.saldoCliente);
-  const mayoristasPend = files
-    .filter(f=>f.saldoMayorista > 0)
-    .sort((a,b)=>b.saldoMayorista-a.saldoMayorista);
-
+  const clientesPend = files.filter(f=>f.saldoCliente > 0).sort((a,b)=>b.saldoCliente-a.saldoCliente);
+  const mayoristasPend = files.filter(f=>f.saldoMayorista > 0).sort((a,b)=>b.saldoMayorista-a.saldoMayorista);
   const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
   let msg = `*Ondina Travel — Cuentas corrientes al ${hoy}*\n`;
-
   if(clientesPend.length > 0){
     msg += `\n🔴 *LO QUE NOS DEBEN LOS CLIENTES*\n`;
     clientesPend.forEach(f=>{
       const cobrado = f.precioVenta - f.saldoCliente;
       const pct = f.precioVenta>0 ? Math.round(cobrado/f.precioVenta*100) : 0;
-      msg += `• File #${f.fileNo} — ${clienteNombreCompleto(f)} (${f.destino})\n`;
-      msg += `  Saldo pendiente: *${fmt(f.saldoCliente, f.moneda)}* (${pct}% cobrado)`;
-      if(f.vencimiento) msg += ` | Vence: ${f.vencimiento}`;
-      msg += `\n`;
+      msg += `• File #${f.fileNo} — ${clienteNombreCompleto(f)} (${f.destino})\n  Saldo: *${fmt(f.saldoCliente,f.moneda)}* · ${pct}% cobrado${f.vencimiento?' · Vence: '+f.vencimiento:''}\n`;
     });
-    const totalUSD = clientesPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoCliente,0);
-    const totalARS = clientesPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoCliente,0);
-    msg += `  _Total por cobrar:_`;
-    if(totalUSD>0) msg += ` ${fmt(totalUSD,'USD')}`;
-    if(totalARS>0) msg += ` ${fmt(totalARS,'ARS')}`;
-    msg += `\n`;
-  } else {
-    msg += `\n✅ *Sin saldos pendientes de clientes*\n`;
-  }
-
+    const tUSD = clientesPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoCliente,0);
+    const tARS = clientesPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoCliente,0);
+    msg += `  _Total:_${tUSD>0?' '+fmt(tUSD,'USD'):''}${tARS>0?' '+fmt(tARS,'ARS'):''}\n`;
+  } else { msg += `\n✅ Sin saldos pendientes de clientes\n`; }
   if(mayoristasPend.length > 0){
     msg += `\n🟡 *LO QUE LE DEBEMOS A LOS MAYORISTAS*\n`;
     mayoristasPend.forEach(f=>{
       const pagado = f.costoNeto - f.saldoMayorista;
       const pct = f.costoNeto>0 ? Math.round(pagado/f.costoNeto*100) : 0;
-      msg += `• File #${f.fileNo} — ${f.mayorista||'Sin especificar'} (${clienteNombreCompleto(f)})\n`;
-      msg += `  Saldo pendiente: *${fmt(f.saldoMayorista, f.moneda)}* (${pct}% pagado)`;
-      if(f.vencimiento) msg += ` | Vence: ${f.vencimiento}`;
-      msg += `\n`;
+      msg += `• File #${f.fileNo} — ${f.mayorista||'—'} / ${clienteNombreCompleto(f)}\n  Saldo: *${fmt(f.saldoMayorista,f.moneda)}* · ${pct}% pagado${f.vencimiento?' · Vence: '+f.vencimiento:''}\n`;
     });
-    const totalUSD = mayoristasPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoMayorista,0);
-    const totalARS = mayoristasPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoMayorista,0);
-    msg += `  _Total por pagar:_`;
-    if(totalUSD>0) msg += ` ${fmt(totalUSD,'USD')}`;
-    if(totalARS>0) msg += ` ${fmt(totalARS,'ARS')}`;
-    msg += `\n`;
-  } else {
-    msg += `\n✅ *Sin deudas con mayoristas*\n`;
-  }
-
-  const url = `https://wa.me/${numero.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
-  window.open(url, '_blank');
+    const tUSD = mayoristasPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoMayorista,0);
+    const tARS = mayoristasPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoMayorista,0);
+    msg += `  _Total:_${tUSD>0?' '+fmt(tUSD,'USD'):''}${tARS>0?' '+fmt(tARS,'ARS'):''}\n`;
+  } else { msg += `\n✅ Sin deudas pendientes con mayoristas\n`; }
+  window.open(`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function renderCuentas(){
@@ -2709,11 +2681,6 @@ function startApp(){
   if(!storageOK){
     document.getElementById('storage-warning').classList.remove('hidden');
   }
-  window.addEventListener('resize', function(){
-    if(!document.getElementById('tab-dashboard').classList.contains('hidden')){
-      renderCharts();
-    }
-  });
 
   const cfg = getSyncConfig();
   if(cfg){
