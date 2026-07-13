@@ -267,6 +267,7 @@
 <nav class="max-w-7xl mx-auto px-6 pt-3 flex gap-1 overflow-x-auto">
   <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
   <button class="tab-btn" data-tab="listado" onclick="switchTab('listado')">Listado de files</button>
+  <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="config" onclick="switchTab('config')">Configuración</button>
 </nav>
@@ -464,6 +465,95 @@
   </section>
 
   <!-- ============ CLIENTES ============ -->
+  <!-- ============ CUENTAS CORRIENTES ============ -->
+  <section id="tab-cuentas" class="tab-section hidden">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+      <h2 class="font-display text-2xl">Cuentas corrientes</h2>
+      <div class="flex gap-2 flex-wrap items-center">
+        <select id="cc-filtro-moneda" onchange="renderCuentas()" class="input w-auto">
+          <option value="todas">USD y ARS</option>
+          <option value="USD">Solo USD</option>
+          <option value="ARS">Solo ARS</option>
+        </select>
+        <select id="cc-filtro-tipo" onchange="renderCuentas()" class="input w-auto">
+          <option value="ambos">Clientes y mayoristas</option>
+          <option value="clientes">Solo clientes</option>
+          <option value="mayoristas">Solo mayoristas</option>
+        </select>
+        <select id="cc-filtro-estado" onchange="renderCuentas()" class="input w-auto">
+          <option value="pendientes">Solo con saldo pendiente</option>
+          <option value="todos">Todos los files</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" id="cc-totales"></div>
+    <div id="cc-clientes-wrap">
+      <h3 class="font-display text-xl mb-3">
+        <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:var(--terracotta)"></span>
+        Lo que nos deben los clientes
+      </h3>
+      <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Nº File</th>
+              <th class="py-2 px-3">Cliente</th>
+              <th class="py-2 px-3">Destino</th>
+              <th class="py-2 px-3">Vencimiento</th>
+              <th class="py-2 px-3 text-right">Total venta</th>
+              <th class="py-2 px-3 text-right">Cobrado</th>
+              <th class="py-2 px-3 text-right">Saldo pendiente</th>
+              <th class="py-2 px-3 text-right">% cobrado</th>
+              <th class="py-2 px-3">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="cc-clientes-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="cc-mayoristas-wrap">
+      <h3 class="font-display text-xl mb-3">
+        <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:var(--gold)"></span>
+        Lo que le debemos a los mayoristas
+      </h3>
+      <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Nº File</th>
+              <th class="py-2 px-3">Mayorista</th>
+              <th class="py-2 px-3">Cliente</th>
+              <th class="py-2 px-3">Destino</th>
+              <th class="py-2 px-3">Vencimiento</th>
+              <th class="py-2 px-3 text-right">Costo neto</th>
+              <th class="py-2 px-3 text-right">Pagado</th>
+              <th class="py-2 px-3 text-right">Saldo pendiente</th>
+              <th class="py-2 px-3 text-right">% pagado</th>
+              <th class="py-2 px-3">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="cc-mayoristas-tbody"></tbody>
+        </table>
+      </div>
+      <h3 class="font-display text-xl mb-3">Resumen por mayorista</h3>
+      <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Mayorista</th>
+              <th class="py-2 px-3 text-center">Files</th>
+              <th class="py-2 px-3 text-right">Total a pagar</th>
+              <th class="py-2 px-3 text-right">Ya pagado</th>
+              <th class="py-2 px-3 text-right">Saldo pendiente</th>
+              <th class="py-2 px-3 text-right">Saldo a favor</th>
+            </tr>
+          </thead>
+          <tbody id="cc-resumen-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section id="tab-clientes" class="tab-section hidden">
     <h2 class="font-display text-2xl mb-4">Base de clientes</h2>
     <p class="text-sm opacity-70 mb-3">Esta base se completa automáticamente cada vez que creás un file nuevo. El nombre es obligatorio; apellido, DNI, fecha de nacimiento y teléfono son opcionales.</p>
@@ -734,6 +824,9 @@ function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name === 'dashboard'){
     renderCharts();
+  }
+  if(name === 'cuentas'){
+    renderCuentas();
   }
 }
 function setDashCurrency(c){
@@ -1050,10 +1143,116 @@ function renderClientes(){
 /* ====================================================================
    RENDER ALL
 ==================================================================== */
+function renderCuentas(){
+  const filtroMoneda = document.getElementById('cc-filtro-moneda').value;
+  const filtroTipo = document.getElementById('cc-filtro-tipo').value;
+  const filtroEstado = document.getElementById('cc-filtro-estado').value;
+  document.getElementById('cc-clientes-wrap').style.display = filtroTipo === 'mayoristas' ? 'none' : '';
+  document.getElementById('cc-mayoristas-wrap').style.display = filtroTipo === 'clientes' ? 'none' : '';
+  let files = [...state.files];
+  if(filtroMoneda !== 'todas') files = files.filter(f=>f.moneda === filtroMoneda);
+  const totUSD = { porCobrar:0, porPagar:0, aFavor:0 };
+  const totARS = { porCobrar:0, porPagar:0, aFavor:0 };
+  state.files.forEach(f=>{
+    const t = f.moneda === 'USD' ? totUSD : totARS;
+    if(f.saldoCliente > 0) t.porCobrar += f.saldoCliente;
+    if(f.saldoMayorista > 0) t.porPagar += f.saldoMayorista;
+    if(f.saldoMayorista < 0) t.aFavor += (-f.saldoMayorista);
+  });
+  const monedas = filtroMoneda === 'todas' ? ['USD','ARS'] : [filtroMoneda];
+  document.getElementById('cc-totales').innerHTML = monedas.flatMap(m => {
+    const t = m === 'USD' ? totUSD : totARS;
+    return [
+      `<div class="bg-white rounded-xl border border-line p-4"><p class="text-xs uppercase tracking-widest opacity-50">Por cobrar (${m})</p><p class="font-mono-num text-xl font-semibold mt-1" style="color:var(--terracotta)">${fmt(t.porCobrar,m)}</p><p class="text-xs opacity-50 mt-1">Clientes con deuda</p></div>`,
+      `<div class="bg-white rounded-xl border border-line p-4"><p class="text-xs uppercase tracking-widest opacity-50">Por pagar (${m})</p><p class="font-mono-num text-xl font-semibold mt-1" style="color:var(--gold)">${fmt(t.porPagar,m)}</p><p class="text-xs opacity-50 mt-1">Deuda con mayoristas</p></div>`,
+      `<div class="bg-white rounded-xl border border-line p-4"><p class="text-xs uppercase tracking-widest opacity-50">Saldo a favor (${m})</p><p class="font-mono-num text-xl font-semibold mt-1" style="color:#3730A3">${fmt(t.aFavor,m)}</p><p class="text-xs opacity-50 mt-1">Crédito con mayoristas</p></div>`
+    ];
+  }).join('');
+  // Clientes
+  let clienteFiles = (filtroEstado==='pendientes') ? files.filter(f=>f.saldoCliente>0) : files;
+  clienteFiles = clienteFiles.sort((a,b)=>b.saldoCliente-a.saldoCliente);
+  const tbodyC = document.getElementById('cc-clientes-tbody');
+  tbodyC.innerHTML = clienteFiles.length === 0
+    ? `<tr><td colspan="9" class="text-center py-6 text-sm opacity-50">No hay saldos pendientes de clientes.</td></tr>`
+    : clienteFiles.map(f=>{
+        const cobrado = f.precioVenta - f.saldoCliente;
+        const pct = f.precioVenta>0 ? Math.round(cobrado/f.precioVenta*100) : 100;
+        const barColor = pct>=100?'#15803D':pct>0?'#B45309':'#B91C1C';
+        const estadoStr = f.saldoCliente<=0?'Pagado':cobrado>0?'Parcial':'Pendiente';
+        const estadoColor = f.saldoCliente<=0?'#15803D':cobrado>0?'#B45309':'#B91C1C';
+        const bar = `<div style="background:#E5E7EB;border-radius:999px;height:6px;width:80px;display:inline-block;vertical-align:middle;"><div style="background:${barColor};width:${Math.min(pct,100)}%;height:100%;border-radius:999px;"></div></div>`;
+        return `<tr class="border-b border-line hover-bg-paper transition">
+          <td class="py-2 px-3 font-mono-num">${f.fileNo}</td>
+          <td class="py-2 px-3 font-semibold">${esc(clienteNombreCompleto(f))}</td>
+          <td class="py-2 px-3">${esc(f.destino)}</td>
+          <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
+          <td class="py-2 px-3 font-mono-num text-right">${fmt(f.precioVenta,f.moneda)}</td>
+          <td class="py-2 px-3 font-mono-num text-right" style="color:var(--green)">${fmt(cobrado,f.moneda)}</td>
+          <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:${f.saldoCliente>0?'var(--terracotta)':'inherit'}">${fmt(f.saldoCliente,f.moneda)}</td>
+          <td class="py-2 px-3 text-right">${bar} <span class="text-xs opacity-60">${pct}%</span></td>
+          <td class="py-2 px-3"><span class="badge" style="background:${estadoColor}20;color:${estadoColor}">${estadoStr}</span></td>
+        </tr>`;
+      }).join('');
+  // Mayoristas
+  let mayoristaFiles = (filtroEstado==='pendientes') ? files.filter(f=>f.saldoMayorista!==0) : files;
+  mayoristaFiles = mayoristaFiles.sort((a,b)=>b.saldoMayorista-a.saldoMayorista);
+  const tbodyM = document.getElementById('cc-mayoristas-tbody');
+  tbodyM.innerHTML = mayoristaFiles.length === 0
+    ? `<tr><td colspan="10" class="text-center py-6 text-sm opacity-50">No hay saldos pendientes con mayoristas.</td></tr>`
+    : mayoristaFiles.map(f=>{
+        const pagado = f.costoNeto - Math.max(f.saldoMayorista,0);
+        const pct = f.costoNeto>0 ? Math.round(pagado/f.costoNeto*100) : 100;
+        const barColor = pct>=100?'#15803D':pct>0?'#B45309':'#B91C1C';
+        let estadoStr,estadoColor,saldoTxt;
+        if(f.saldoMayorista<0){estadoStr='A favor';estadoColor='#3730A3';saldoTxt=`<span style="color:#3730A3">A favor ${fmt(-f.saldoMayorista,f.moneda)}</span>`;}
+        else if(f.saldoMayorista===0){estadoStr='Pagado';estadoColor='#15803D';saldoTxt=`<span style="color:#15803D">${fmt(0,f.moneda)}</span>`;}
+        else if(pagado>0){estadoStr='Parcial';estadoColor='#B45309';saldoTxt=`<span style="color:var(--gold);font-weight:600">${fmt(f.saldoMayorista,f.moneda)}</span>`;}
+        else{estadoStr='Pendiente';estadoColor='#B91C1C';saldoTxt=`<span style="color:var(--terracotta);font-weight:600">${fmt(f.saldoMayorista,f.moneda)}</span>`;}
+        const bar = `<div style="background:#E5E7EB;border-radius:999px;height:6px;width:80px;display:inline-block;vertical-align:middle;"><div style="background:${barColor};width:${Math.min(Math.max(pct,0),100)}%;height:100%;border-radius:999px;"></div></div>`;
+        return `<tr class="border-b border-line hover-bg-paper transition">
+          <td class="py-2 px-3 font-mono-num">${f.fileNo}</td>
+          <td class="py-2 px-3 font-semibold">${esc(f.mayorista||'—')}</td>
+          <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
+          <td class="py-2 px-3">${esc(f.destino)}</td>
+          <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
+          <td class="py-2 px-3 font-mono-num text-right">${fmt(f.costoNeto,f.moneda)}</td>
+          <td class="py-2 px-3 font-mono-num text-right" style="color:var(--green)">${fmt(pagado,f.moneda)}</td>
+          <td class="py-2 px-3 font-mono-num text-right">${saldoTxt}</td>
+          <td class="py-2 px-3 text-right">${bar} <span class="text-xs opacity-60">${pct}%</span></td>
+          <td class="py-2 px-3"><span class="badge" style="background:${estadoColor}20;color:${estadoColor}">${estadoStr}</span></td>
+        </tr>`;
+      }).join('');
+  // Resumen por mayorista
+  const resumenMap = {};
+  files.forEach(f=>{
+    if(!f.mayorista) return;
+    const key = `${f.mayorista}||${f.moneda}`;
+    if(!resumenMap[key]) resumenMap[key]={mayorista:f.mayorista,moneda:f.moneda,filesCount:0,totalCosto:0,totalPagado:0,pendiente:0,aFavor:0};
+    const r = resumenMap[key]; r.filesCount++;
+    r.totalCosto += f.costoNeto;
+    r.totalPagado += (f.costoNeto - Math.max(f.saldoMayorista,0));
+    if(f.saldoMayorista>0) r.pendiente += f.saldoMayorista;
+    if(f.saldoMayorista<0) r.aFavor += (-f.saldoMayorista);
+  });
+  const tbodyR = document.getElementById('cc-resumen-tbody');
+  const resumenRows = Object.values(resumenMap).sort((a,b)=>b.pendiente-a.pendiente);
+  tbodyR.innerHTML = resumenRows.length === 0
+    ? `<tr><td colspan="6" class="text-center py-6 text-sm opacity-50">No hay mayoristas registrados.</td></tr>`
+    : resumenRows.map(r=>`<tr class="border-b border-line hover-bg-paper transition">
+        <td class="py-2 px-3 font-semibold">${esc(r.mayorista)} <span class="badge ml-1" style="background:#E5E7EB;color:#374151">${r.moneda}</span></td>
+        <td class="py-2 px-3 font-mono-num text-center">${r.filesCount}</td>
+        <td class="py-2 px-3 font-mono-num text-right">${fmt(r.totalCosto,r.moneda)}</td>
+        <td class="py-2 px-3 font-mono-num text-right" style="color:var(--green)">${fmt(r.totalPagado,r.moneda)}</td>
+        <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:${r.pendiente>0?'var(--gold)':'inherit'}">${r.pendiente>0?fmt(r.pendiente,r.moneda):'—'}</td>
+        <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:${r.aFavor>0?'#3730A3':'inherit'}">${r.aFavor>0?fmt(r.aFavor,r.moneda):'—'}</td>
+      </tr>`).join('');
+}
+
 function renderAll(){
   renderDashboard();
   renderListado();
   renderClientes();
+  renderCuentas();
 }
 
 /* ====================================================================
