@@ -1663,6 +1663,150 @@ function renderHistorial(){
 }
 
 /* ====================================================================
+   WHATSAPP — SELECTOR DE CONTACTOS
+==================================================================== */
+const WA_CONTACTS_KEY = 'ondina_wa_contactos';
+
+function waLoadContactos(){
+  try{ return JSON.parse(storageGet(WA_CONTACTS_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function waSaveContactos(list){
+  storageSet(WA_CONTACTS_KEY, JSON.stringify(list));
+}
+function waRenderLista(){
+  var list = waLoadContactos();
+  var wrap = document.getElementById('wa-contactos-lista');
+  if(!wrap) return;
+  if(list.length === 0){
+    wrap.innerHTML = '<p class="text-xs opacity-50">No hay contactos guardados aún. Agregá uno abajo.</p>';
+    return;
+  }
+  wrap.innerHTML = list.map(function(c,i){
+    return '<div class="flex items-center gap-2 bg-white border border-line rounded-lg px-3 py-2">' +
+      '<div class="flex-1 min-w-0"><p class="text-sm font-semibold">' + esc(c.nombre) + '</p>' +
+      '<p class="text-xs opacity-50 font-mono-num">+' + esc(c.numero) + '</p></div>' +
+      '<button onclick="waEnviarNumero(\'' + c.numero + '\')" class="btn-primary shrink-0" style="background:#25D366;padding:6px 12px;font-size:0.75rem;">Enviar</button>' +
+      '<button onclick="waEliminarContacto(' + i + ')" class="text-xs underline opacity-50 shrink-0" style="color:var(--terracotta)">&#x2715;</button>' +
+      '</div>';
+  }).join('');
+}
+function waEliminarContacto(i){
+  var list = waLoadContactos();
+  list.splice(i,1);
+  waSaveContactos(list);
+  waRenderLista();
+}
+function waGuardarNuevo(){
+  var num = document.getElementById('wa-numero-nuevo').value.trim().replace(/\D/g,'');
+  if(!num){ alert('Ingresá un número válido.'); return; }
+  var nombre = prompt('Nombre para este contacto (ej: Ivana, Freeway...)') || num;
+  var list = waLoadContactos();
+  if(list.some(function(c){ return c.numero===num; })){ alert('Este número ya está guardado.'); return; }
+  list.push({ nombre: nombre.trim(), numero: num });
+  waSaveContactos(list);
+  document.getElementById('wa-numero-nuevo').value = '';
+  waRenderLista();
+}
+function openWaModal(){
+  waRenderLista();
+  var inp = document.getElementById('wa-numero-nuevo');
+  if(inp) inp.value = '';
+  document.getElementById('modal-wa').classList.remove('hidden');
+}
+function closeWaModal(){
+  document.getElementById('modal-wa').classList.add('hidden');
+}
+function waEnviarNumero(numero){
+  numero = (numero || '').replace(/\D/g,'');
+  if(!numero){ alert('Ingresá un número válido.'); return; }
+  closeWaModal();
+  var hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var msg = 'Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ' + hoy + '. Adjunto la imagen descargada.';
+  var waText = encodeURIComponent(msg);
+  var isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = 'whatsapp://send?phone=' + numero + '&text=' + waText;
+    setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero + '&text=' + waText, '_blank'); }, 2000);
+  } else {
+    window.open('https://wa.me/' + numero + '?text=' + waText, '_blank');
+  }
+}
+
+async function enviarWhatsApp(){
+  var btn = document.getElementById('btn-whatsapp');
+  var label = document.getElementById('btn-whatsapp-label');
+
+  if(typeof html2canvas === 'undefined'){
+    openWaModal();
+    return;
+  }
+
+  label.textContent = 'Generando imagen...';
+  btn.style.opacity = '0.7';
+  btn.disabled = true;
+
+  try{
+    var hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+
+    var contenedor = document.createElement('div');
+    contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:28px 32px;font-family:Inter,sans-serif;min-width:700px;width:max-content;max-width:1400px;';
+
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:2px solid #1F2937;padding-bottom:14px;';
+    header.innerHTML = '<div><div style="font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Ondina Travel</div>' +
+      '<div style="font-size:11px;color:#6B7280;letter-spacing:0.2em;text-transform:uppercase;margin-top:2px;">Cuentas corrientes al ' + hoy + '</div></div>';
+    contenedor.appendChild(header);
+
+    var seccion = document.getElementById('tab-cuentas');
+    var clonar = seccion.cloneNode(true);
+    var headerClon = clonar.querySelector('.flex.flex-wrap.justify-between');
+    if(headerClon) headerClon.remove();
+    clonar.style.cssText = 'display:block;width:max-content;min-width:100%;';
+    clonar.querySelectorAll('.overflow-x-auto').forEach(function(el){ el.style.cssText='overflow:visible;'; });
+    clonar.querySelectorAll('table').forEach(function(t){ t.style.cssText='border-collapse:collapse;font-size:13px;white-space:nowrap;'; });
+    clonar.querySelectorAll('th').forEach(function(el){ el.style.cssText='padding:7px 14px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;'; });
+    clonar.querySelectorAll('td').forEach(function(el){ el.style.cssText='padding:8px 14px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;'; });
+    clonar.querySelectorAll('tr.row-selected').forEach(function(el){ el.classList.remove('row-selected'); });
+    clonar.querySelectorAll('.bg-white.rounded-xl').forEach(function(el){ el.style.cssText='border:1px solid #E5E7EB;border-radius:10px;overflow:visible;margin-bottom:20px;'; });
+    clonar.querySelectorAll('h3.font-display').forEach(function(el){ el.style.cssText='font-family:Georgia,serif;font-size:17px;margin-bottom:10px;font-weight:600;'; });
+    clonar.querySelectorAll('div[style*="border-radius:999px"]').forEach(function(el){ el.remove(); });
+    contenedor.appendChild(clonar);
+    document.body.appendChild(contenedor);
+
+    var realW = contenedor.scrollWidth + 10;
+    contenedor.style.width = realW + 'px';
+
+    var canvas = await html2canvas(contenedor, {
+      scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false,
+      width:realW, windowWidth:realW+100
+    });
+    document.body.removeChild(contenedor);
+
+    var link = document.createElement('a');
+    link.download = 'ondina-travel-cuentas-' + hoy.replace(/\//g,'-') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    label.textContent = 'Imagen descargada — elegí el contacto';
+    btn.style.background = '#15803D';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+    setTimeout(function(){ label.textContent='Descargar imagen y abrir WhatsApp'; btn.style.background='#25D366'; }, 4000);
+
+    await new Promise(function(r){ setTimeout(r, 400); });
+    openWaModal();
+
+  } catch(err){
+    console.error(err);
+    label.textContent = 'Error: ' + err.message;
+    btn.style.opacity = '1';
+    btn.disabled = false;
+    setTimeout(function(){ label.textContent='Descargar imagen y abrir WhatsApp'; }, 3000);
+  }
+}
+
+/* ====================================================================
    RENDER: CUENTAS CORRIENTES
 ==================================================================== */
 

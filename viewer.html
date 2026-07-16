@@ -984,7 +984,11 @@ async function enviarWhatsApp(){
     const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const contenedor = document.createElement('div');
     contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:28px 32px;font-family:Inter,sans-serif;min-width:700px;width:max-content;max-width:1400px;';
-    contenedor.innerHTML = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:2px solid #1F2937;padding-bottom:14px;"><div><div style="font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Ondina Travel</div><div style="font-size:11px;color:#6B7280;letter-spacing:0.2em;text-transform:uppercase;margin-top:2px;">Cuentas corrientes al ${hoy}</div></div></div>`;
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:2px solid #1F2937;padding-bottom:14px;';
+    header.innerHTML = '<div><div style="font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Ondina Travel</div>' +
+      '<div style="font-size:11px;color:#6B7280;letter-spacing:0.2em;text-transform:uppercase;margin-top:2px;">Cuentas corrientes al ' + hoy + '</div></div>';
+    contenedor.appendChild(header);
     const seccion = document.getElementById('tab-cuentas');
     const clonar = seccion.cloneNode(true);
     const headerClon = clonar.querySelector('.flex.flex-wrap.justify-between');
@@ -1004,7 +1008,7 @@ async function enviarWhatsApp(){
     const canvas = await html2canvas(contenedor, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false, width:realW, windowWidth:realW+100 });
     document.body.removeChild(contenedor);
     const link = document.createElement('a');
-    link.download = `ondina-travel-cuentas-${hoy.replace(/\//g,'-')}.png`;
+    link.download = 'ondina-travel-cuentas-' + hoy.replace(/\//g,'-') + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
     label.textContent = '✓ Imagen descargada — elegí el contacto';
