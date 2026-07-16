@@ -809,7 +809,7 @@ service cloud.firestore {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
       <div class="bg-white rounded-xl border border-line p-4">
-        <h3 class="font-display text-lg mb-2">Copia de seguridad</h3>
+        <h3 class="font-display text-lg mb-2">Copia de seguridad manual</h3>
         <p class="text-sm opacity-70 mb-3">Exportá toda la información (files, clientes, movimientos y saldos) a un archivo JSON para guardarla o pasarla a otra computadora.</p>
         <button onclick="exportData()" class="btn-primary">Exportar datos (JSON)</button>
         <hr class="my-4 border-line">
@@ -822,6 +822,43 @@ service cloud.firestore {
         <div class="space-y-3" id="ajuste-cajas"></div>
       </div>
     </div>
+
+    <div class="bg-white rounded-xl border border-line p-4 mb-6">
+      <h3 class="font-display text-lg mb-2">Backup automático a Google Drive</h3>
+      <p class="text-sm opacity-70 mb-2">
+        Guardá una copia del backup directamente en tu Google Drive. Se crea un archivo
+        <span class="font-mono-num">ondina-travel-backup-FECHA.json</span> en la carpeta que elijas.
+      </p>
+      <div id="gdrive-status" class="text-sm mb-3"></div>
+      <div id="gdrive-connect-wrap">
+        <p class="text-sm opacity-70 mb-2">
+          Para activarlo necesitás pegar acá tu <strong>Client ID</strong> de Google (se configura una sola vez).
+          Clic en "¿Cómo obtenerlo?" para ver las instrucciones.
+        </p>
+        <div class="flex gap-2 mb-2">
+          <input type="text" id="gdrive-client-id" placeholder="Pegá tu Client ID de Google aquí" class="input">
+          <button onclick="gdriveGuardarClientId()" class="btn-ghost shrink-0">Guardar</button>
+        </div>
+        <details class="text-sm opacity-80 mt-2">
+          <summary class="cursor-pointer font-semibold">¿Cómo obtener el Client ID? (5 minutos, una sola vez)</summary>
+          <ol class="list-decimal list-inside space-y-1 mt-2 opacity-80">
+            <li>Entrá a <span class="font-mono-num">console.cloud.google.com</span> con tu cuenta de Google.</li>
+            <li>Creá un proyecto nuevo (cualquier nombre, ej: "ondina-backup").</li>
+            <li>En el menú lateral → <strong>APIs y servicios → Biblioteca</strong> → buscá "Google Drive API" → habilitala.</li>
+            <li>Andá a <strong>APIs y servicios → Credenciales</strong> → "+ Crear credencial" → <strong>ID de cliente de OAuth</strong>.</li>
+            <li>Tipo de aplicación: <strong>Aplicación web</strong>. En "Orígenes autorizados" agregá la URL de tu GitHub Pages (ej: <span class="font-mono-num">https://tu-usuario.github.io</span>).</li>
+            <li>Copiá el <strong>ID de cliente</strong> que aparece (termina en <span class="font-mono-num">.apps.googleusercontent.com</span>) y pegalo arriba.</li>
+            <li>En <strong>Pantalla de consentimiento OAuth</strong> → agregá tu email como "usuario de prueba".</li>
+          </ol>
+        </details>
+      </div>
+      <div id="gdrive-actions" class="hidden">
+        <button onclick="gdriveBackupAhora()" class="btn-primary mr-2">Hacer backup ahora</button>
+        <button onclick="gdriveDesconectar()" class="btn-ghost text-sm">Desconectar Google Drive</button>
+        <p class="text-xs opacity-50 mt-2" id="gdrive-ultimo"></p>
+      </div>
+    </div>
+
     <div class="bg-white rounded-xl border-2 border-terracotta p-4">
       <h3 class="font-display text-lg mb-2" style="color:var(--terracotta)">Zona de riesgo</h3>
       <p class="text-sm opacity-70 mb-3">Borra todos los files, clientes, movimientos y saldos guardados en este navegador. Esta acción no se puede deshacer.</p>
@@ -2740,6 +2777,144 @@ function checkPin(){
 /* ====================================================================
    INICIALIZACIÓN
 ==================================================================== */
+/* ====================================================================
+   BACKUP AUTOMÁTICO A GOOGLE DRIVE
+   Usa la Google Identity Services (GIS) + Drive REST API v3.
+   El token OAuth se renueva automáticamente por el navegador.
+==================================================================== */
+const GDRIVE_KEY      = 'ondina_gdrive_client_id';
+const GDRIVE_TOKEN_KEY = 'ondina_gdrive_token';
+const GDRIVE_LAST_KEY  = 'ondina_gdrive_last';
+const GDRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.file';
+
+var gdriveTokenClient = null;
+var gdriveAccessToken = null;
+
+function gdriveLoadClientId(){
+  try{ return storageGet(GDRIVE_KEY) || ''; } catch(e){ return ''; }
+}
+function gdriveGuardarClientId(){
+  var id = (document.getElementById('gdrive-client-id').value || '').trim();
+  if(!id){ alert('Pegá un Client ID válido.'); return; }
+  storageSet(GDRIVE_KEY, id);
+  gdriveInit();
+}
+function gdriveDesconectar(){
+  gdriveAccessToken = null;
+  storageSet(GDRIVE_TOKEN_KEY, '');
+  gdriveRenderStatus(false);
+}
+function gdriveRenderStatus(connected){
+  var statusEl = document.getElementById('gdrive-status');
+  var connectWrap = document.getElementById('gdrive-connect-wrap');
+  var actionsEl = document.getElementById('gdrive-actions');
+  var ultimoEl = document.getElementById('gdrive-ultimo');
+  if(!statusEl) return;
+  var clientId = gdriveLoadClientId();
+  if(!clientId){
+    statusEl.innerHTML = '<span class="opacity-50">No configurado.</span>';
+    if(connectWrap) connectWrap.classList.remove('hidden');
+    if(actionsEl) actionsEl.classList.add('hidden');
+    return;
+  }
+  if(connected){
+    statusEl.innerHTML = '<span style="color:var(--green)">✓ Conectado a Google Drive</span>';
+    if(connectWrap) connectWrap.classList.add('hidden');
+    if(actionsEl) actionsEl.classList.remove('hidden');
+    var last = storageGet(GDRIVE_LAST_KEY);
+    if(ultimoEl) ultimoEl.textContent = last ? 'Último backup: ' + last : 'Sin backups realizados aún.';
+  } else {
+    statusEl.innerHTML = '<span class="opacity-50">Client ID guardado — tocá "Hacer backup ahora" para autorizar por primera vez.</span>';
+    if(connectWrap) connectWrap.classList.add('hidden');
+    if(actionsEl) actionsEl.classList.remove('hidden');
+    var inp = document.getElementById('gdrive-client-id');
+    if(inp) inp.value = clientId;
+    var last2 = storageGet(GDRIVE_LAST_KEY);
+    if(ultimoEl) ultimoEl.textContent = last2 ? 'Último backup: ' + last2 : '';
+  }
+}
+function gdriveInit(){
+  var clientId = gdriveLoadClientId();
+  if(!clientId){ gdriveRenderStatus(false); return; }
+  if(typeof google === 'undefined' || !google.accounts){
+    // Cargar GIS dinámicamente
+    var s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = function(){ gdriveInitTokenClient(clientId); };
+    s.onerror = function(){ if(document.getElementById('gdrive-status')) document.getElementById('gdrive-status').innerHTML = '<span style="color:var(--terracotta)">No se pudo cargar Google Sign-In (revisá tu conexión a internet).</span>'; };
+    document.head.appendChild(s);
+  } else {
+    gdriveInitTokenClient(clientId);
+  }
+}
+function gdriveInitTokenClient(clientId){
+  try{
+    gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: GDRIVE_SCOPE,
+      callback: function(resp){
+        if(resp.error){ alert('Error de autorización con Google: ' + resp.error); return; }
+        gdriveAccessToken = resp.access_token;
+        gdriveRenderStatus(true);
+        gdriveSubirBackup();
+      }
+    });
+    gdriveRenderStatus(false);
+  } catch(e){
+    console.error('gdriveInitTokenClient error:', e);
+  }
+}
+function gdriveBackupAhora(){
+  if(!gdriveTokenClient){ gdriveInit(); setTimeout(gdriveBackupAhora, 1500); return; }
+  if(gdriveAccessToken){
+    gdriveSubirBackup();
+  } else {
+    gdriveTokenClient.requestAccessToken({ prompt: 'consent' });
+  }
+}
+async function gdriveSubirBackup(){
+  var statusEl = document.getElementById('gdrive-status');
+  if(statusEl) statusEl.innerHTML = '<span class="opacity-70">Subiendo backup a Google Drive...</span>';
+  try{
+    var fecha = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    var filename = 'ondina-travel-backup-' + fecha + '.json';
+    var content = JSON.stringify(state, null, 2);
+    var boundary = '-------ondina_backup_boundary';
+    var body = '--' + boundary + '\r\n' +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify({ name: filename, mimeType: 'application/json' }) + '\r\n' +
+      '--' + boundary + '\r\n' +
+      'Content-Type: application/json\r\n\r\n' +
+      content + '\r\n' +
+      '--' + boundary + '--';
+    var resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + gdriveAccessToken,
+        'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+      },
+      body: body
+    });
+    if(!resp.ok){
+      var errData = await resp.json().catch(function(){ return {}; });
+      if(resp.status === 401){
+        // Token expirado — pedir uno nuevo silenciosamente
+        gdriveAccessToken = null;
+        gdriveTokenClient.requestAccessToken({ prompt: '' });
+        return;
+      }
+      throw new Error('HTTP ' + resp.status + ': ' + (errData.error && errData.error.message || 'Error desconocido'));
+    }
+    var last = new Date().toLocaleString('es-AR');
+    storageSet(GDRIVE_LAST_KEY, last);
+    gdriveRenderStatus(true);
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✓ Backup subido exitosamente a Google Drive (' + last + ')</span>';
+  } catch(err){
+    console.error('gdriveSubirBackup error:', err);
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--terracotta)">Error al subir: ' + err.message + '</span>';
+  }
+}
+
 function startApp(){
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('gasto-fecha').value = todayStr();
@@ -2757,6 +2932,20 @@ function startApp(){
     document.getElementById('sync-config-input').value = JSON.stringify(cfg, null, 2);
   }
   initFirebase();
+  // Inicializar Google Drive si ya está configurado
+  if(gdriveLoadClientId()) gdriveInit();
+  // Auto-backup diario a Google Drive: si pasaron más de 24hs desde el último backup, lo hace solo
+  var lastBackup = storageGet(GDRIVE_LAST_KEY);
+  if(lastBackup){
+    var lastMs = new Date(lastBackup.replace(/(\d+)\/(\d+)\/(\d+),?\s*(\d+):(\d+):(\d+)/, '$3-$2-$1T$4:$5:$6')).getTime();
+    var hoursAgo = (Date.now() - lastMs) / 3600000;
+    if(hoursAgo >= 24 && gdriveLoadClientId()){
+      setTimeout(function(){
+        if(gdriveAccessToken) gdriveSubirBackup();
+        // Si no hay token aún (primera vez del día), lo hará cuando el usuario toque "backup ahora"
+      }, 5000);
+    }
+  }
 }
 
 const __syncCfg = getSyncConfig();
