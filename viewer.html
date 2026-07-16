@@ -600,6 +600,28 @@
 
 </main>
 
+<!-- ============ MODAL: SELECTOR DE CONTACTO WHATSAPP ============ -->
+<div id="modal-wa" class="modal hidden">
+  <div class="modal-card" style="max-width:26rem;">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-display text-xl">Enviar por WhatsApp</h3>
+      <button onclick="closeWaModal()" class="text-2xl leading-none">&times;</button>
+    </div>
+    <p class="text-sm opacity-70 mb-3">Seleccioná un contacto guardado o ingresá un número nuevo.</p>
+    <div id="wa-contactos-lista" class="mb-3 space-y-2"></div>
+    <hr class="border-line mb-3">
+    <label class="label">Número nuevo</label>
+    <div class="flex gap-2 mb-1">
+      <input type="text" id="wa-numero-nuevo" placeholder="Ej: 5493462541097" class="input">
+      <button onclick="waGuardarNuevo()" class="btn-ghost shrink-0">Guardar</button>
+    </div>
+    <p class="text-xs opacity-50 mb-3">Sin + ni espacios · Incluí código de país (54 para Argentina)</p>
+    <button onclick="waEnviarNumero(document.getElementById('wa-numero-nuevo').value)" class="btn-primary w-full" style="background:#25D366;">
+      Enviar a este número
+    </button>
+  </div>
+</div>
+
 <script>
 /* ====================================================================
    CONSTANTES Y ESTADO
@@ -907,17 +929,57 @@ function renderClientes(){
 /* ====================================================================
    RENDER ALL
 ==================================================================== */
-const WA_NUMERO = '5493346541097';
+const WA_CONTACTS_KEY = 'ondina_wa_contactos';
+
+function waLoadContactos(){
+  try{ return JSON.parse(storageGet(WA_CONTACTS_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function waSaveContactos(list){ storageSet(WA_CONTACTS_KEY, JSON.stringify(list)); }
+function waRenderLista(){
+  const list = waLoadContactos();
+  const wrap = document.getElementById('wa-contactos-lista');
+  if(list.length === 0){ wrap.innerHTML = `<p class="text-xs opacity-50">No hay contactos guardados aún. Agregá uno abajo.</p>`; return; }
+  wrap.innerHTML = list.map((c,i)=>`
+    <div class="flex items-center gap-2 bg-white border border-line rounded-lg px-3 py-2">
+      <div class="flex-1 min-w-0"><p class="text-sm font-semibold truncate">${esc(c.nombre)}</p><p class="text-xs opacity-50 font-mono-num">+${esc(c.numero)}</p></div>
+      <button onclick="waEnviarNumero('${c.numero}')" class="btn-primary shrink-0" style="background:#25D366;padding:6px 12px;font-size:0.75rem;">Enviar</button>
+      <button onclick="waEliminarContacto(${i})" class="text-xs underline opacity-50 hover-opacity-100 shrink-0" style="color:var(--terracotta)">✕</button>
+    </div>`).join('');
+}
+function waEliminarContacto(i){ const list=waLoadContactos(); list.splice(i,1); waSaveContactos(list); waRenderLista(); }
+function waGuardarNuevo(){
+  const num = document.getElementById('wa-numero-nuevo').value.trim().replace(/\D/g,'');
+  if(!num){ alert('Ingresá un número válido.'); return; }
+  const nombre = prompt('¿Cómo querés llamar a este contacto?') || num;
+  const list = waLoadContactos();
+  if(list.some(c=>c.numero===num)){ alert('Este número ya está guardado.'); return; }
+  list.push({ nombre: nombre.trim(), numero: num });
+  waSaveContactos(list);
+  document.getElementById('wa-numero-nuevo').value = '';
+  waRenderLista();
+}
+function openWaModal(){ waRenderLista(); document.getElementById('wa-numero-nuevo').value=''; document.getElementById('modal-wa').classList.remove('hidden'); }
+function closeWaModal(){ document.getElementById('modal-wa').classList.add('hidden'); }
+function waEnviarNumero(numero){
+  numero = (numero||'').replace(/\D/g,'');
+  if(!numero){ alert('Ingresá un número válido.'); return; }
+  closeWaModal();
+  const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const msg = `Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ${hoy}. Adjunto la imagen descargada.`;
+  const waText = encodeURIComponent(msg);
+  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = `whatsapp://send?phone=${numero}&text=${waText}`;
+    setTimeout(()=>{ window.open(`https://web.whatsapp.com/send?phone=${numero}&text=${waText}`, '_blank'); }, 2000);
+  } else { window.open(`https://wa.me/${numero}?text=${waText}`, '_blank'); }
+}
 
 async function enviarWhatsApp(){
   const btn = document.getElementById('btn-whatsapp');
   const label = document.getElementById('btn-whatsapp-label');
-  if(typeof html2canvas === 'undefined'){
-    enviarWhatsAppTexto(); return;
-  }
-  label.textContent = 'Generando imagen...';
-  btn.style.opacity = '0.7';
-  btn.disabled = true;
+  if(typeof html2canvas === 'undefined'){ openWaModal(); return; }
+  label.textContent = 'Generando imagen...'; btn.style.opacity='0.7'; btn.disabled=true;
   try{
     const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
     const contenedor = document.createElement('div');
@@ -928,12 +990,12 @@ async function enviarWhatsApp(){
     const headerClon = clonar.querySelector('.flex.flex-wrap.justify-between');
     if(headerClon) headerClon.remove();
     clonar.style.cssText = 'display:block;width:max-content;min-width:100%;';
-    clonar.querySelectorAll('.overflow-x-auto').forEach(el=>{ el.style.cssText = 'overflow:visible;'; });
-    clonar.querySelectorAll('table').forEach(t=>{ t.style.cssText = 'border-collapse:collapse;font-size:13px;white-space:nowrap;'; });
-    clonar.querySelectorAll('th').forEach(el=>{ el.style.cssText = 'padding:7px 14px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;'; });
-    clonar.querySelectorAll('td').forEach(el=>{ el.style.cssText = 'padding:8px 14px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;'; });
-    clonar.querySelectorAll('.bg-white.rounded-xl').forEach(el=>{ el.style.cssText = 'border:1px solid #E5E7EB;border-radius:10px;overflow:visible;margin-bottom:20px;'; });
-    clonar.querySelectorAll('h3.font-display').forEach(el=>{ el.style.cssText = 'font-family:Georgia,serif;font-size:17px;margin-bottom:10px;font-weight:600;'; });
+    clonar.querySelectorAll('.overflow-x-auto').forEach(el=>{ el.style.cssText='overflow:visible;'; });
+    clonar.querySelectorAll('table').forEach(t=>{ t.style.cssText='border-collapse:collapse;font-size:13px;white-space:nowrap;'; });
+    clonar.querySelectorAll('th').forEach(el=>{ el.style.cssText='padding:7px 14px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;'; });
+    clonar.querySelectorAll('td').forEach(el=>{ el.style.cssText='padding:8px 14px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;'; });
+    clonar.querySelectorAll('.bg-white.rounded-xl').forEach(el=>{ el.style.cssText='border:1px solid #E5E7EB;border-radius:10px;overflow:visible;margin-bottom:20px;'; });
+    clonar.querySelectorAll('h3.font-display').forEach(el=>{ el.style.cssText='font-family:Georgia,serif;font-size:17px;margin-bottom:10px;font-weight:600;'; });
     clonar.querySelectorAll('div[style*="border-radius:999px"]').forEach(el=>{ el.remove(); });
     contenedor.appendChild(clonar);
     document.body.appendChild(contenedor);
@@ -945,56 +1007,15 @@ async function enviarWhatsApp(){
     link.download = `ondina-travel-cuentas-${hoy.replace(/\//g,'-')}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    await new Promise(r => setTimeout(r, 600));
-    const msg = `Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ${hoy}. Adjunto la imagen descargada.`;
-    const waText = encodeURIComponent(msg);
-    const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
-    if(isApple){
-      window.location.href = `whatsapp://send?phone=${WA_NUMERO}&text=${waText}`;
-      setTimeout(()=>{ window.open(`https://web.whatsapp.com/send?phone=${WA_NUMERO}&text=${waText}`, '_blank'); }, 2000);
-    } else {
-      window.open(`https://wa.me/${WA_NUMERO}?text=${waText}`, '_blank');
-    }
-    label.textContent = '✓ ¡Imagen descargada! Pegala en WhatsApp';
-    btn.style.background = '#15803D';
-    setTimeout(()=>{ label.textContent = 'Descargar imagen y abrir WhatsApp'; btn.style.background = '#25D366'; btn.style.opacity = '1'; btn.disabled = false; }, 3500);
+    label.textContent = '✓ Imagen descargada — elegí el contacto';
+    btn.style.background='#15803D'; btn.style.opacity='1'; btn.disabled=false;
+    setTimeout(()=>{ label.textContent='Descargar imagen y abrir WhatsApp'; btn.style.background='#25D366'; }, 4000);
+    await new Promise(r=>setTimeout(r,400));
+    openWaModal();
   } catch(err){
     console.error(err);
-    label.textContent = 'Error — enviando como texto...';
-    btn.style.opacity = '1'; btn.disabled = false;
-    setTimeout(()=>enviarWhatsAppTexto(), 600);
-  }
-}
-
-function enviarWhatsAppTexto(){
-  const filtroMoneda = document.getElementById('cc-filtro-moneda').value;
-  let files = [...state.files];
-  if(filtroMoneda !== 'todas') files = files.filter(f=>f.moneda === filtroMoneda);
-  const clientesPend = files.filter(f=>f.saldoCliente > 0).sort((a,b)=>b.saldoCliente-a.saldoCliente);
-  const mayoristasPend = files.filter(f=>f.saldoMayorista > 0).sort((a,b)=>b.saldoMayorista-a.saldoMayorista);
-  const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-  let msg = `*Ondina Travel — Cuentas corrientes al ${hoy}*\n`;
-  if(clientesPend.length > 0){
-    msg += `\n🔴 *LO QUE NOS DEBEN LOS CLIENTES*\n`;
-    clientesPend.forEach(f=>{ const cobrado=f.precioVenta-f.saldoCliente; const pct=f.precioVenta>0?Math.round(cobrado/f.precioVenta*100):0; msg+=`• File #${f.fileNo} — ${clienteNombreCompleto(f)} (${f.destino})\n  Saldo: *${fmt(f.saldoCliente,f.moneda)}* · ${pct}% cobrado${f.vencimiento?' · Vence: '+f.vencimiento:''}\n`; });
-    const tUSD=clientesPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoCliente,0);
-    const tARS=clientesPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoCliente,0);
-    msg+=`  _Total:_${tUSD>0?' '+fmt(tUSD,'USD'):''}${tARS>0?' '+fmt(tARS,'ARS'):''}\n`;
-  } else { msg+=`\n✅ Sin saldos pendientes de clientes\n`; }
-  if(mayoristasPend.length > 0){
-    msg += `\n🟡 *LO QUE LE DEBEMOS A LOS MAYORISTAS*\n`;
-    mayoristasPend.forEach(f=>{ const pagado=f.costoNeto-f.saldoMayorista; const pct=f.costoNeto>0?Math.round(pagado/f.costoNeto*100):0; msg+=`• File #${f.fileNo} — ${f.mayorista||'—'} / ${clienteNombreCompleto(f)}\n  Saldo: *${fmt(f.saldoMayorista,f.moneda)}* · ${pct}% pagado${f.vencimiento?' · Vence: '+f.vencimiento:''}\n`; });
-    const tUSD=mayoristasPend.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoMayorista,0);
-    const tARS=mayoristasPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoMayorista,0);
-    msg+=`  _Total:_${tUSD>0?' '+fmt(tUSD,'USD'):''}${tARS>0?' '+fmt(tARS,'ARS'):''}\n`;
-  } else { msg+=`\n✅ Sin deudas pendientes con mayoristas\n`; }
-  const waText = encodeURIComponent(msg);
-  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
-  if(isApple){
-    window.location.href = `whatsapp://send?phone=${WA_NUMERO}&text=${waText}`;
-    setTimeout(()=>{ window.open(`https://web.whatsapp.com/send?phone=${WA_NUMERO}&text=${waText}`, '_blank'); }, 2000);
-  } else {
-    window.open(`https://wa.me/${WA_NUMERO}?text=${waText}`, '_blank');
+    label.textContent='Error al generar imagen'; btn.style.opacity='1'; btn.disabled=false;
+    setTimeout(()=>{ label.textContent='Descargar imagen y abrir WhatsApp'; }, 2500);
   }
 }
 
