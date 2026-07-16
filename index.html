@@ -1659,8 +1659,9 @@ async function enviarWhatsApp(){
     const hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
 
     // Crear un contenedor temporal con fondo blanco para capturar
+    // Contenedor sin ancho fijo — se adapta al contenido real de la tabla
     const contenedor = document.createElement('div');
-    contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:24px;font-family:Inter,sans-serif;width:900px;';
+    contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:28px 32px;font-family:Inter,sans-serif;min-width:700px;width:max-content;max-width:1400px;';
 
     // Encabezado
     contenedor.innerHTML = `
@@ -1679,35 +1680,46 @@ async function enviarWhatsApp(){
     const headerClon = clonar.querySelector('.flex.flex-wrap.justify-between');
     if(headerClon) headerClon.remove();
 
-    // Aplicar estilos inline para captura fiel
-    clonar.style.cssText = 'display:block;';
+    // Aplicar estilos inline para captura fiel — sin scroll horizontal, todas las celdas visibles
+    clonar.style.cssText = 'display:block;width:max-content;min-width:100%;';
+    clonar.querySelectorAll('.overflow-x-auto').forEach(el=>{
+      el.style.cssText = 'overflow:visible;';
+    });
     clonar.querySelectorAll('table').forEach(t=>{
-      t.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;';
+      t.style.cssText = 'border-collapse:collapse;font-size:13px;white-space:nowrap;';
     });
     clonar.querySelectorAll('th').forEach(el=>{
-      el.style.cssText = 'padding:7px 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;';
+      el.style.cssText = 'padding:7px 14px;font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#6B7280;border-bottom:1px solid #E5E5E5;background:#F9FAFB;white-space:nowrap;';
     });
     clonar.querySelectorAll('td').forEach(el=>{
-      el.style.cssText = 'padding:8px 10px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;';
+      el.style.cssText = 'padding:8px 14px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-size:13px;';
     });
     clonar.querySelectorAll('tr.row-selected').forEach(el=>{
       el.classList.remove('row-selected');
     });
     clonar.querySelectorAll('.bg-white.rounded-xl').forEach(el=>{
-      el.style.cssText = 'border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:20px;';
+      el.style.cssText = 'border:1px solid #E5E7EB;border-radius:10px;overflow:visible;margin-bottom:20px;';
     });
     clonar.querySelectorAll('h3.font-display').forEach(el=>{
       el.style.cssText = 'font-family:Georgia,serif;font-size:17px;margin-bottom:10px;font-weight:600;';
     });
+    // Quitar progress bars en columna % (pueden no renderizar bien)
+    clonar.querySelectorAll('div[style*="border-radius:999px"]').forEach(el=>{ el.remove(); });
 
     contenedor.appendChild(clonar);
     document.body.appendChild(contenedor);
+
+    // Medir el ancho real del contenido antes de capturar
+    const realW = contenedor.scrollWidth + 10;
+    contenedor.style.width = realW + 'px';
 
     const canvas = await html2canvas(contenedor, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#ffffff',
-      logging: false
+      logging: false,
+      width: realW,
+      windowWidth: realW + 100
     });
 
     document.body.removeChild(contenedor);
@@ -1718,11 +1730,24 @@ async function enviarWhatsApp(){
     link.href = canvas.toDataURL('image/png');
     link.click();
 
-    // Esperar un momento y abrir WhatsApp
-    await new Promise(r => setTimeout(r, 800));
-
+    // Abrir WhatsApp — intenta protocolo nativo primero (Mac + iPhone),
+    // si no funciona en 1.5s abre web.whatsapp.com
+    await new Promise(r => setTimeout(r, 600));
     const msg = `Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ${hoy}. Adjunto la imagen descargada.`;
-    window.open(`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(msg)}`, '_blank');
+    const waText = encodeURIComponent(msg);
+
+    // Detección: en iOS/Mac intentamos la app nativa; en otros, web directo
+    const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+    if(isApple){
+      // Protocolo nativo — abre la app de WhatsApp directamente
+      window.location.href = `whatsapp://send?phone=${WA_NUMERO}&text=${waText}`;
+      // Si la app no está instalada, después de 2s abrimos la web como fallback
+      setTimeout(()=>{
+        window.open(`https://web.whatsapp.com/send?phone=${WA_NUMERO}&text=${waText}`, '_blank');
+      }, 2000);
+    } else {
+      window.open(`https://wa.me/${WA_NUMERO}?text=${waText}`, '_blank');
+    }
 
     label.textContent = '✓ ¡Imagen descargada! Pegala en WhatsApp';
     btn.style.background = '#15803D';
@@ -1773,7 +1798,14 @@ function enviarWhatsAppTexto(){
     const tARS = mayoristasPend.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoMayorista,0);
     msg += `  _Total:_${tUSD>0?' '+fmt(tUSD,'USD'):''}${tARS>0?' '+fmt(tARS,'ARS'):''}\n`;
   } else { msg += `\n✅ Sin deudas pendientes con mayoristas\n`; }
-  window.open(`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(msg)}`, '_blank');
+  const waText = encodeURIComponent(msg);
+  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = `whatsapp://send?phone=${WA_NUMERO}&text=${waText}`;
+    setTimeout(()=>{ window.open(`https://web.whatsapp.com/send?phone=${WA_NUMERO}&text=${waText}`, '_blank'); }, 2000);
+  } else {
+    window.open(`https://wa.me/${WA_NUMERO}?text=${waText}`, '_blank');
+  }
 }
 
 function renderCuentas(){
