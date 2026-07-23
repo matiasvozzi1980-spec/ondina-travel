@@ -1499,6 +1499,14 @@ const MONEDA_SYM = {USD:'US$', ARS:'AR$'};
 const STORAGE_KEY = 'bitacora_viajes_v2';
 const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
+const FILTROS_KEY = 'ondina_filtros_ui';
+const FILTROS_IDS = [
+  'filter-files-estado',
+  'listado-buscar', 'listado-mayorista', 'listado-moneda', 'listado-estado-cliente',
+  'listado-estado-mayorista', 'listado-vencimiento', 'listado-desde', 'listado-hasta',
+  'filter-caja', 'filter-tipo', 'filter-moneda',
+  'clientes-buscar'
+];
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler', 'Servicios', 'Sueldos', 'Publicidad', 'Insumos', 'Impuestos', 'Comisiones bancarias', 'Otros'];
 let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
@@ -1561,6 +1569,39 @@ function storageSet(key, value){
     storageOK = false;
     memoryStore[key] = value;
   }
+}
+
+/* ====================================================================
+   FILTROS PERSISTENTES ENTRE PESTAÑAS
+   (recuerda lo que quedó tipeado/seleccionado en cada filtro para que
+   no se pierda al cambiar de pestaña o reabrir la app)
+==================================================================== */
+function saveFiltrosUI(){
+  const data = {};
+  FILTROS_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) data[id] = el.value;
+  });
+  storageSet(FILTROS_KEY, JSON.stringify(data));
+}
+function restoreFiltrosUI(){
+  let saved;
+  try{ saved = JSON.parse(storageGet(FILTROS_KEY) || '{}'); }catch(e){ saved = {}; }
+  buildMayoristaOptions(); // asegura que las opciones de mayorista existan antes de restaurar su valor
+  FILTROS_IDS.forEach(id => {
+    if(saved[id] !== undefined){
+      const el = document.getElementById(id);
+      if(el) el.value = saved[id];
+    }
+  });
+}
+function initFiltrosUIListeners(){
+  FILTROS_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', saveFiltrosUI);
+    el.addEventListener('change', saveFiltrosUI);
+  });
 }
 
 /* ====================================================================
@@ -2277,6 +2318,7 @@ function resetListadoFiltros(){
   document.getElementById('listado-desde').value = '';
   document.getElementById('listado-hasta').value = '';
   renderListado();
+  saveFiltrosUI();
 }
 function renderListado(){
   buildMayoristaOptions();
@@ -4109,7 +4151,9 @@ function startApp(){
 
   load();
   buildAjusteCajas();
+  restoreFiltrosUI();
   renderAll();
+  initFiltrosUIListeners();
   updateSortIndicators('files');
   updateSortIndicators('listado');
   if(!storageOK){
