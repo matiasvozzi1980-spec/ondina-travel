@@ -847,6 +847,47 @@
         <tfoot id="reporte-mensual-tfoot" class="font-semibold"></tfoot>
       </table>
     </div>
+
+    <div class="flex flex-wrap items-center gap-2 mb-4 mt-8">
+      <h2 class="font-display text-xl opacity-80 mr-auto">Cuentas por cobrar por antigüedad</h2>
+      <div class="flex border border-line rounded-lg overflow-hidden">
+        <button class="toggle-btn active" data-antig-currency="USD" onclick="setAntiguedadCurrency('USD')">USD</button>
+        <button class="toggle-btn" data-antig-currency="ARS" onclick="setAntiguedadCurrency('ARS')">ARS</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">0-30 días</p>
+        <p id="antig-0-30" class="font-mono-num text-lg font-semibold mt-1">$0.00</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">31-60 días</p>
+        <p id="antig-31-60" class="font-mono-num text-lg font-semibold mt-1">$0.00</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">61-90 días</p>
+        <p id="antig-61-90" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--gold)">$0.00</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">Más de 90 días</p>
+        <p id="antig-90-mas" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--terracotta)">$0.00</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-line overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-paper text-left">
+          <tr>
+            <th class="py-2 px-3">Nº file</th>
+            <th class="py-2 px-3">Fecha</th>
+            <th class="py-2 px-3">Cliente</th>
+            <th class="py-2 px-3">Saldo pendiente</th>
+            <th class="py-2 px-3">Días de antigüedad</th>
+            <th class="py-2 px-3">Rango</th>
+          </tr>
+        </thead>
+        <tbody id="reporte-antiguedad-tbody"></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ============ CONFIGURACIÓN ============ -->
@@ -1286,6 +1327,7 @@ let dashCurrency = 'USD';
 let dashPeriod = 'todo';
 let reporteCurrency = 'USD';
 let reporteAnio = null;
+let antiguedadCurrency = 'USD';
 
 function periodRange(){
   const hoy = todayStr();
@@ -1501,7 +1543,49 @@ function renderReporteMensual(){
   `;
 }
 
+function setAntiguedadCurrency(c){
+  antiguedadCurrency = c;
+  document.querySelectorAll('.toggle-btn[data-antig-currency]').forEach(b=>b.classList.toggle('active', b.dataset.antigCurrency===c));
+  renderAntiguedad();
+}
+function renderAntiguedad(){
+  const hoy = new Date(todayStr()+'T00:00:00');
+  const buckets = { '0-30':0, '31-60':0, '61-90':0, '90-mas':0 };
+  const filas = [];
 
+  state.files
+    .filter(f => f.moneda === antiguedadCurrency && f.saldoCliente > 0)
+    .forEach(f => {
+      const fFecha = new Date((f.fecha||todayStr())+'T00:00:00');
+      const dias = Math.max(0, Math.round((hoy - fFecha) / 86400000));
+      let rango;
+      if(dias <= 30){ rango = '0-30'; }
+      else if(dias <= 60){ rango = '31-60'; }
+      else if(dias <= 90){ rango = '61-90'; }
+      else{ rango = '90-mas'; }
+      buckets[rango] += f.saldoCliente;
+      filas.push({ f, dias, rango });
+    });
+
+  document.getElementById('antig-0-30').textContent = fmt(buckets['0-30'], antiguedadCurrency);
+  document.getElementById('antig-31-60').textContent = fmt(buckets['31-60'], antiguedadCurrency);
+  document.getElementById('antig-61-90').textContent = fmt(buckets['61-90'], antiguedadCurrency);
+  document.getElementById('antig-90-mas').textContent = fmt(buckets['90-mas'], antiguedadCurrency);
+
+  const rangoLabel = { '0-30':'0-30 días', '31-60':'31-60 días', '61-90':'61-90 días', '90-mas':'Más de 90 días' };
+  filas.sort((a,b) => b.dias - a.dias);
+  const tbody = document.getElementById('reporte-antiguedad-tbody');
+  tbody.innerHTML = filas.map(({f, dias, rango}) => `
+    <tr class="border-t border-line">
+      <td class="py-2 px-3">${esc(f.fileNo)}</td>
+      <td class="py-2 px-3">${esc(f.fecha||'')}</td>
+      <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
+      <td class="py-2 px-3 font-mono-num">${fmt(f.saldoCliente, antiguedadCurrency)}</td>
+      <td class="py-2 px-3">${dias}</td>
+      <td class="py-2 px-3">${rangoLabel[rango]}</td>
+    </tr>
+  `).join('') || '<tr><td class="py-3 px-3 opacity-50" colspan="6">Sin saldos pendientes en esta moneda.</td></tr>';
+}
 
 /* ====================================================================
    VENCIMIENTOS Y ALARMAS
@@ -1634,6 +1718,7 @@ function switchTab(name){
   }
   if(name === 'reportes'){
     renderReporteMensual();
+    renderAntiguedad();
   }
 }
 function setDashCurrency(c){
