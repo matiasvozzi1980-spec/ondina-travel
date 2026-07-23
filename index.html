@@ -1383,6 +1383,7 @@ service cloud.firestore {
         <input type="date" id="detail-vencimiento" class="input w-auto">
         <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
         <span id="detail-venc-badge"></span>
+        <button type="button" id="btn-recordatorio-wa" class="btn-ghost hidden" style="color:#25D366; border-color:#25D366;" onclick="enviarRecordatorioVencimiento(currentFileId)">Enviar recordatorio WhatsApp</button>
       </div>
     </div>
 
@@ -1794,6 +1795,33 @@ function vencimientoCellHtml(f){
   if(info.estado === 'porvencer') return `<span class="badge badge-parcial" title="Vence en ${info.dias} día(s)">${fechaTxt} · ${info.dias}d</span>`;
   return `<span class="text-xs opacity-60">${fechaTxt}</span>`;
 }
+function enviarRecordatorioVencimiento(fileId){
+  const f = state.files.find(x=>x.id===fileId);
+  if(!f) return;
+  if(!f.vencimiento){ toast('Este file no tiene fecha de vencimiento cargada.', 'error'); return; }
+
+  let numero = (f.clienteTelefono || '').replace(/\D/g,'');
+  if(!numero){
+    const input = prompt('Este file no tiene teléfono cargado. Ingresá el número de WhatsApp del cliente (con código de país, sin espacios ni +):');
+    if(!input) return;
+    numero = input.replace(/\D/g,'');
+    if(!numero){ toast('Número inválido.', 'error'); return; }
+  }
+
+  const info = vencimientoInfo(f);
+  const estadoTexto = (info && info.estado === 'vencido') ? `venció el ${f.vencimiento}` : `vence el ${f.vencimiento}`;
+  const detalles = [];
+  if(f.saldoCliente > 0) detalles.push(`un saldo pendiente de ${fmt(f.saldoCliente, f.moneda)}`);
+  const msg = `Hola ${clienteNombreCompleto(f)}! Te escribimos de Ondina Travel para recordarte que tu file #${f.fileNo} (${f.destino}) ${estadoTexto}${detalles.length ? ', con ' + detalles.join(' y ') : ''}. Cualquier consulta, estamos a disposición. ¡Gracias!`;
+  const waText = encodeURIComponent(msg);
+  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = 'whatsapp://send?phone=' + numero + '&text=' + waText;
+    setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero + '&text=' + waText, '_blank'); }, 2000);
+  } else {
+    window.open('https://wa.me/' + numero + '?text=' + waText, '_blank');
+  }
+}
 
 /* ====================================================================
    ESTADOS DE CUENTA
@@ -1963,7 +1991,10 @@ function renderAlertas(){
         <p class="text-sm font-semibold">#${f.fileNo} — ${esc(clienteNombreCompleto(f))} <span class="opacity-50">(${esc(f.destino)})</span></p>
         <p class="text-xs opacity-60">${detalles.join(' · ')} · vence ${esc(f.vencimiento)}</p>
       </div>
-      ${badge}
+      <div class="flex items-center gap-2 shrink-0">
+        <button type="button" onclick="event.stopPropagation(); enviarRecordatorioVencimiento(${f.id})" class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#25D366; border-color:#25D366;">WhatsApp</button>
+        ${badge}
+      </div>
     </div>`;
   }).join('');
 }
@@ -3125,6 +3156,7 @@ function openDetail(id){
   else if(vinfo.estado === 'vencido') badgeEl.innerHTML = `<span class="badge badge-pendiente">Vencido hace ${Math.abs(vinfo.dias)} día(s)</span>`;
   else if(vinfo.estado === 'porvencer') badgeEl.innerHTML = `<span class="badge badge-parcial">Vence en ${vinfo.dias} día(s)</span>`;
   else badgeEl.innerHTML = '';
+  document.getElementById('btn-recordatorio-wa').classList.toggle('hidden', !f.vencimiento);
 
   document.getElementById('cobro-moneda-label').textContent = f.moneda;
   document.getElementById('pago-moneda-label').textContent = f.moneda;
