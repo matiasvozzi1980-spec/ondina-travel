@@ -281,6 +281,7 @@
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
+  <button class="tab-btn" data-tab="reportes" onclick="switchTab('reportes')">Reportes</button>
   <button class="tab-btn" data-tab="config" onclick="switchTab('config')">Configuración</button>
 </nav>
 
@@ -821,6 +822,33 @@
     </div>
   </section>
 
+  <!-- ============ REPORTES ============ -->
+  <section id="tab-reportes" class="tab-section hidden">
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <h2 class="font-display text-xl opacity-80 mr-auto">Reporte mensual de ventas y comisiones</h2>
+      <select id="reporte-anio" class="border border-line rounded-lg px-2 py-1 text-sm" onchange="renderReporteMensual()"></select>
+      <div class="flex border border-line rounded-lg overflow-hidden">
+        <button class="toggle-btn active" data-report-currency="USD" onclick="setReporteCurrency('USD')">USD</button>
+        <button class="toggle-btn" data-report-currency="ARS" onclick="setReporteCurrency('ARS')">ARS</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-line overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-paper text-left">
+          <tr>
+            <th class="py-2 px-3">Mes</th>
+            <th class="py-2 px-3">Files</th>
+            <th class="py-2 px-3">Ventas</th>
+            <th class="py-2 px-3">Costos netos</th>
+            <th class="py-2 px-3">Comisiones</th>
+          </tr>
+        </thead>
+        <tbody id="reporte-mensual-tbody"></tbody>
+        <tfoot id="reporte-mensual-tfoot" class="font-semibold"></tfoot>
+      </table>
+    </div>
+  </section>
+
   <!-- ============ CONFIGURACIÓN ============ -->
   <section id="tab-config" class="tab-section hidden">
     <h2 class="font-display text-2xl mb-4">Configuración y respaldo</h2>
@@ -1256,6 +1284,8 @@ let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
 let dashPeriod = 'todo';
+let reporteCurrency = 'USD';
+let reporteAnio = null;
 
 function periodRange(){
   const hoy = todayStr();
@@ -1415,6 +1445,62 @@ function totals(moneda){
 }
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
+function setReporteCurrency(c){
+  reporteCurrency = c;
+  document.querySelectorAll('.toggle-btn[data-report-currency]').forEach(b=>b.classList.toggle('active', b.dataset.reportCurrency===c));
+  renderReporteMensual();
+}
+function renderReporteMensual(){
+  const anioSel = document.getElementById('reporte-anio');
+  const aniosSet = new Set(state.files.map(f => f.fecha ? f.fecha.slice(0,4) : null).filter(Boolean));
+  aniosSet.add(String(new Date().getFullYear()));
+  const anios = Array.from(aniosSet).sort((a,b)=>b.localeCompare(a));
+  if(anioSel.dataset.built !== anios.join(',')){
+    anioSel.innerHTML = anios.map(a=>`<option value="${a}">${a}</option>`).join('');
+    anioSel.dataset.built = anios.join(',');
+  }
+  if(!reporteAnio || !anios.includes(reporteAnio)) reporteAnio = anios[0];
+  anioSel.value = reporteAnio;
+
+  const porMes = Array.from({length:12}, () => ({ cant:0, ventas:0, costos:0, comisiones:0 }));
+  state.files.forEach(f=>{
+    if(f.moneda !== reporteCurrency) return;
+    if(!f.fecha || f.fecha.slice(0,4) !== reporteAnio) return;
+    const mIdx = parseInt(f.fecha.slice(5,7), 10) - 1;
+    if(mIdx < 0 || mIdx > 11) return;
+    porMes[mIdx].cant += 1;
+    porMes[mIdx].ventas += f.precioVenta;
+    porMes[mIdx].costos += f.costoNeto;
+    porMes[mIdx].comisiones += f.comision;
+  });
+
+  const tbody = document.getElementById('reporte-mensual-tbody');
+  tbody.innerHTML = porMes.map((m, i) => `
+    <tr class="border-t border-line">
+      <td class="py-2 px-3">${MESES[i]}</td>
+      <td class="py-2 px-3">${m.cant}</td>
+      <td class="py-2 px-3 font-mono-num">${fmt(m.ventas, reporteCurrency)}</td>
+      <td class="py-2 px-3 font-mono-num">${fmt(m.costos, reporteCurrency)}</td>
+      <td class="py-2 px-3 font-mono-num" style="color:var(--gold)">${fmt(m.comisiones, reporteCurrency)}</td>
+    </tr>
+  `).join('');
+
+  const totalCant = porMes.reduce((a,m)=>a+m.cant,0);
+  const totalVentas = porMes.reduce((a,m)=>a+m.ventas,0);
+  const totalCostos = porMes.reduce((a,m)=>a+m.costos,0);
+  const totalComisiones = porMes.reduce((a,m)=>a+m.comisiones,0);
+  const tfoot = document.getElementById('reporte-mensual-tfoot');
+  tfoot.innerHTML = `
+    <tr class="border-t border-line bg-paper">
+      <td class="py-2 px-3">Total</td>
+      <td class="py-2 px-3">${totalCant}</td>
+      <td class="py-2 px-3 font-mono-num">${fmt(totalVentas, reporteCurrency)}</td>
+      <td class="py-2 px-3 font-mono-num">${fmt(totalCostos, reporteCurrency)}</td>
+      <td class="py-2 px-3 font-mono-num" style="color:var(--gold)">${fmt(totalComisiones, reporteCurrency)}</td>
+    </tr>
+  `;
+}
+
 
 
 /* ====================================================================
@@ -1545,6 +1631,9 @@ function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(name === 'cuentas'){
     renderCuentas();
+  }
+  if(name === 'reportes'){
+    renderReporteMensual();
   }
 }
 function setDashCurrency(c){
