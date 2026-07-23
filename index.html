@@ -1251,55 +1251,69 @@ service cloud.firestore {
       <h3 id="detail-title" class="font-display text-xl"></h3>
       <button onclick="closeDetailModal()" class="text-2xl leading-none">&times;</button>
     </div>
-    <div id="detail-info" class="text-sm grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3 bg-white border border-line rounded-lg p-3"></div>
 
-    <div class="flex flex-wrap items-center gap-2 mb-4 bg-white border border-line rounded-lg p-3">
-      <label class="label mb-0">Fecha límite de vencimiento</label>
-      <input type="date" id="detail-vencimiento" class="input w-auto">
-      <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
-      <span id="detail-venc-badge"></span>
+    <div class="flex border border-line rounded-lg overflow-hidden mb-3 w-fit">
+      <button type="button" class="toggle-btn active" data-detail-tab="resumen" onclick="switchDetailTab('resumen')">Resumen</button>
+      <button type="button" class="toggle-btn" data-detail-tab="cobros" onclick="switchDetailTab('cobros')">Cobros y pagos</button>
+      <button type="button" class="toggle-btn" data-detail-tab="movimientos" onclick="switchDetailTab('movimientos')">Movimientos</button>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-      <form id="form-cobro" class="border border-line rounded-lg p-3 bg-white">
-        <p class="font-display mb-2">Registrar cobro de cliente</p>
-        <label class="label">Monto (<span id="cobro-moneda-label">USD</span>)</label>
-        <input type="number" step="0.01" min="0" id="cobro-monto" required class="input mb-2">
-        <label class="label">Caja receptora</label>
-        <select id="cobro-caja" class="input mb-2">
-          <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
-        </select>
-        <button type="submit" class="btn-primary w-full">Registrar cobro</button>
-      </form>
-      <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
-        <p class="font-display mb-2">Registrar pago a mayorista</p>
-        <div id="pago-credito-info" class="text-sm mb-2 hidden"></div>
-        <label class="label">Monto (<span id="pago-moneda-label">USD</span>)</label>
-        <input type="number" step="0.01" min="0" id="pago-monto" required class="input mb-2">
-        <label class="label">Caja emisora</label>
-        <select id="pago-caja" class="input mb-2">
-          <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
-        </select>
-        <button type="submit" class="btn-danger w-full">Registrar pago</button>
-        <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
-      </form>
+    <div id="detail-tab-resumen" class="detail-tab-panel">
+      <div id="detail-info" class="text-sm grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3 bg-white border border-line rounded-lg p-3"></div>
+
+      <div class="flex flex-wrap items-center gap-2 mb-4 bg-white border border-line rounded-lg p-3">
+        <label class="label mb-0">Fecha límite de vencimiento</label>
+        <input type="date" id="detail-vencimiento" class="input w-auto">
+        <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
+        <span id="detail-venc-badge"></span>
+      </div>
     </div>
 
-    <h4 class="font-display text-lg mb-2">Movimientos de este file</h4>
-    <div class="overflow-x-auto bg-white border border-line rounded-lg mb-4">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Concepto</th>
-            <th class="py-2 px-3 text-right">Monto</th>
-            <th class="py-2 px-3">Caja</th>
-            <th class="py-2 px-3"></th>
-          </tr>
-        </thead>
-        <tbody id="detail-history-tbody"></tbody>
-      </table>
+    <div id="detail-tab-cobros" class="detail-tab-panel hidden">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <form id="form-cobro" class="border border-line rounded-lg p-3 bg-white">
+          <p class="font-display mb-2">Registrar cobro de cliente</p>
+          <label class="label">Monto (<span id="cobro-moneda-label">USD</span>)</label>
+          <input type="number" step="0.01" min="0" id="cobro-monto" required class="input mb-2">
+          <label class="label">Caja receptora</label>
+          <select id="cobro-caja" class="input mb-2">
+            <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
+          </select>
+          <button type="submit" class="btn-primary w-full">Registrar cobro</button>
+        </form>
+        <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
+          <p class="font-display mb-2">Registrar pago a mayorista</p>
+          <div id="pago-credito-info" class="text-sm mb-2 hidden"></div>
+          <label class="label">Monto (<span id="pago-moneda-label">USD</span>)</label>
+          <input type="number" step="0.01" min="0" id="pago-monto" required class="input mb-2">
+          <label class="label">Caja emisora</label>
+          <select id="pago-caja" class="input mb-2">
+            <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
+          </select>
+          <button type="submit" class="btn-danger w-full">Registrar pago</button>
+          <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
+        </form>
+      </div>
     </div>
+
+    <div id="detail-tab-movimientos" class="detail-tab-panel hidden">
+      <h4 class="font-display text-lg mb-2">Movimientos de este file</h4>
+      <div class="overflow-x-auto bg-white border border-line rounded-lg mb-4">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Fecha</th>
+              <th class="py-2 px-3">Concepto</th>
+              <th class="py-2 px-3 text-right">Monto</th>
+              <th class="py-2 px-3">Caja</th>
+              <th class="py-2 px-3"></th>
+            </tr>
+          </thead>
+          <tbody id="detail-history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="flex gap-2 flex-wrap">
       <button id="btn-edit-file" class="btn-ghost">Editar datos del file</button>
       <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
@@ -2798,6 +2812,7 @@ function openDetail(id){
   document.getElementById('form-cobro').reset();
   document.getElementById('form-pago').reset();
   renderFileHistory(id);
+  switchDetailTab('resumen');
   document.getElementById('modal-detail').classList.remove('hidden');
 }
 function closeDetailModal(){
@@ -2805,6 +2820,11 @@ function closeDetailModal(){
   currentFileId = null;
   selectedListadoId = null;
   renderListado();
+}
+function switchDetailTab(name){
+  document.querySelectorAll('.detail-tab-panel').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('detail-tab-'+name).classList.remove('hidden');
+  document.querySelectorAll('[data-detail-tab]').forEach(b=>b.classList.toggle('active', b.dataset.detailTab===name));
 }
 function saveVencimiento(){
   const f = state.files.find(x=>x.id===currentFileId);
