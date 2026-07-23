@@ -1245,6 +1245,12 @@ service cloud.firestore {
         <p class="text-xs opacity-50 mt-1">Usá esto solo para corregir manualmente un saldo a favor (por ejemplo, si pagaste de más antes de usar esta función). Se resta del saldo pendiente con el mayorista.</p>
       </div>
 
+      <div>
+        <label class="label">Tipo de cambio de referencia (opcional)</label>
+        <input type="number" step="0.01" min="0" id="file-tipocambio" class="input" placeholder="Ej: 1050.00">
+        <p class="text-xs opacity-50 mt-1">Solo informativo, para registrar a qué cotización se armó este file. No afecta ningún cálculo.</p>
+      </div>
+
       <p class="text-sm bg-paper border border-line rounded-lg p-2">
         Comisión estimada: <span id="file-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span>
       </p>
@@ -1288,6 +1294,8 @@ service cloud.firestore {
           <select id="cobro-caja" class="input mb-2">
             <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
           </select>
+          <label class="label">Tipo de cambio (opcional)</label>
+          <input type="number" step="0.01" min="0" id="cobro-tipocambio" class="input mb-2" placeholder="Solo informativo">
           <button type="submit" class="btn-primary w-full">Registrar cobro</button>
         </form>
         <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
@@ -1299,6 +1307,8 @@ service cloud.firestore {
           <select id="pago-caja" class="input mb-2">
             <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
           </select>
+          <label class="label">Tipo de cambio (opcional)</label>
+          <input type="number" step="0.01" min="0" id="pago-tipocambio" class="input mb-2" placeholder="Solo informativo">
           <button type="submit" class="btn-danger w-full">Registrar pago</button>
           <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
         </form>
@@ -2571,6 +2581,7 @@ function openEditFileModal(id){
   document.getElementById('file-precio').value = f.precioVenta;
   document.getElementById('file-vencimiento').value = f.vencimiento || '';
   document.getElementById('file-credito-mayorista').value = f.saldoMayorista < 0 ? (-f.saldoMayorista).toFixed(2) : '0';
+  document.getElementById('file-tipocambio').value = f.tipoCambio || '';
   updateComisionPreview();
   document.getElementById('modal-file').classList.remove('hidden');
 }
@@ -2605,6 +2616,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const precioVenta = parseFloat(document.getElementById('file-precio').value) || 0;
   const vencimiento = document.getElementById('file-vencimiento').value || null;
   const creditoMayoristaManual = parseFloat(document.getElementById('file-credito-mayorista').value) || 0;
+  const tipoCambio = parseFloat(document.getElementById('file-tipocambio').value) || null;
 
   if(!fileNo){
     toast('Ingresá un número o código de file válido.', 'error');
@@ -2697,7 +2709,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
           comision: precioVenta - costoNeto,
           saldoCliente: precioVenta,
           saldoMayorista: costoNeto - creditoMayoristaManual,
-          vencimiento
+          vencimiento, tipoCambio
         };
         state.files.push(file);
         const numericVal = parseInt(fileNo, 10);
@@ -2740,6 +2752,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     f.precioVenta = precioVenta;
     f.comision = precioVenta - costoNeto;
     f.vencimiento = vencimiento;
+    f.tipoCambio = tipoCambio;
     f.saldoCliente = precioVenta - cobradoPrevio;
     f.saldoMayorista = (costoNeto - pagadoPrevio) - creditoMayoristaManual;
   } else {
@@ -2756,7 +2769,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       comision: precioVenta - costoNeto,
       saldoCliente: precioVenta,
       saldoMayorista: costoNeto - creditoMayoristaManual,
-      vencimiento
+      vencimiento, tipoCambio
     };
     state.files.push(file);
     const numericVal = parseInt(fileNo, 10);
@@ -2821,6 +2834,7 @@ function openDetail(id){
     <div><p class="label">Costo neto</p><p class="font-mono-num">${fmt(f.costoNeto, f.moneda)}</p></div>
     <div><p class="label">Precio venta</p><p class="font-mono-num">${fmt(f.precioVenta, f.moneda)}</p></div>
     <div><p class="label">Comisión</p><p class="font-mono-num" style="color:var(--gold)">${fmt(f.comision, f.moneda)}</p></div>
+    <div><p class="label">Tipo de cambio de referencia</p><p class="font-mono-num">${f.tipoCambio ? f.tipoCambio.toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2}) : '—'}</p></div>
     <div class="sm:col-span-3"><hr class="border-line my-1"></div>
     <div><p class="label">Cliente</p><p>${esc(clienteNombreCompleto(f))}</p></div>
     <div><p class="label">DNI</p><p>${esc(f.clienteDni || '—')}</p></div>
@@ -2898,7 +2912,7 @@ function renderFileHistory(fileId){
   tbody.innerHTML = movs.map(m=>`
     <tr class="border-b border-line">
       <td class="py-2 px-3">${esc(m.fecha)}</td>
-      <td class="py-2 px-3">${esc(m.concepto)}</td>
+      <td class="py-2 px-3">${esc(m.concepto)}${m.tipoCambio ? `<br><span class="text-xs opacity-50">TC: ${m.tipoCambio.toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
@@ -2915,6 +2929,7 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
   if(!f) return;
   const monto = parseFloat(document.getElementById('cobro-monto').value);
   const caja = document.getElementById('cobro-caja').value;
+  const tipoCambio = parseFloat(document.getElementById('cobro-tipocambio').value) || null;
   if(!monto || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
   f.saldoCliente -= monto;
@@ -2924,7 +2939,7 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
     fileId: f.id,
     fileNo: f.fileNo,
     concepto: `Cobro a cliente — File #${f.fileNo} (${clienteNombreCompleto(f)})`,
-    monto, moneda: f.moneda, tipo: 'ingreso', caja, categoria: 'cobro'
+    monto, moneda: f.moneda, tipo: 'ingreso', caja, categoria: 'cobro', tipoCambio
   });
   save();
   openDetail(f.id);
@@ -2962,6 +2977,7 @@ document.getElementById('form-pago').addEventListener('submit', function(e){
   if(!f) return;
   const monto = parseFloat(document.getElementById('pago-monto').value);
   const caja = document.getElementById('pago-caja').value;
+  const tipoCambio = parseFloat(document.getElementById('pago-tipocambio').value) || null;
   if(!monto || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
   // Verificación de saldo suficiente en caja
@@ -2985,7 +3001,7 @@ document.getElementById('form-pago').addEventListener('submit', function(e){
     fileId: f.id,
     fileNo: f.fileNo,
     concepto: `Pago a mayorista — File #${f.fileNo} (${f.mayorista || 'sin especificar'})`,
-    monto, moneda: f.moneda, tipo: 'egreso', caja, categoria: 'pago'
+    monto, moneda: f.moneda, tipo: 'egreso', caja, categoria: 'pago', tipoCambio
   });
   save();
   openDetail(f.id);
