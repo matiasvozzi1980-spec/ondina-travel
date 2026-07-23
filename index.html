@@ -986,6 +986,20 @@
     </div>
 
     <div class="bg-white rounded-xl border border-line p-4 mb-6">
+      <h3 class="font-display text-lg mb-2">Categorías de gastos</h3>
+      <p class="text-sm opacity-70 mb-3">
+        Estas son las categorías que aparecen para elegir al registrar un "Gasto vario" en la pestaña Caja.
+        Podés renombrarlas, eliminarlas o agregar nuevas. Los gastos ya registrados con una categoría eliminada
+        o renombrada conservan el texto original (no se modifican retroactivamente).
+      </p>
+      <div id="gasto-categorias-lista" class="flex flex-wrap gap-2 mb-3"></div>
+      <div class="flex gap-2">
+        <input type="text" id="nueva-gasto-categoria" class="input" placeholder="Nueva categoría (ej: Mantenimiento)">
+        <button type="button" onclick="addGastoCategoria()" class="btn-ghost shrink-0">Agregar</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-line p-4 mb-6">
       <h3 class="font-display text-lg mb-2">Sincronización en la nube (todos los dispositivos)</h3>
       <p class="text-sm opacity-70 mb-2">
         Estado actual: <strong id="config-sync-status">Modo local (sin sincronizar)</strong>
@@ -1477,15 +1491,14 @@ service cloud.firestore {
 ==================================================================== */
 const CAJAS = ['Banco','Ivana','Raul','Casa','Juli'];
 const CAJA_LABELS = {Banco:'Banco', Ivana:'Ivana', Raul:'Raúl', Casa:'Casa', Juli:'Juli'};
-const GASTO_CATEGORIAS = ['Alquiler', 'Servicios', 'Sueldos', 'Publicidad', 'Insumos', 'Impuestos', 'Comisiones bancarias', 'Otros'];
-document.getElementById('gasto-categoria').innerHTML += GASTO_CATEGORIAS.map(c => `<option value="${c}">${c}</option>`).join('');
 const MONEDAS = ['USD','ARS'];
 const MONEDA_SYM = {USD:'US$', ARS:'AR$'};
 const STORAGE_KEY = 'bitacora_viajes_v2';
 const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
 
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
+const GASTO_CATEGORIAS_DEFAULT = ['Alquiler', 'Servicios', 'Sueldos', 'Publicidad', 'Insumos', 'Impuestos', 'Comisiones bancarias', 'Otros'];
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
 let currentFileId = null;
 let editingFileId = null;
 let convertingPresupuestoId = null;
@@ -1564,6 +1577,7 @@ function load(){
       state.clientes = data.clientes || [];
       state.nextFileNo = data.nextFileNo || 1;
       state.presupuestos = data.presupuestos || [];
+      state.gastoCategorias = Array.isArray(data.gastoCategorias) && data.gastoCategorias.length ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     return;
   }
@@ -1756,6 +1770,63 @@ function renderAntiguedad(){
       <td class="py-2 px-3">${rangoLabel[rango]}</td>
     </tr>
   `).join('') || '<tr><td class="py-3 px-3 opacity-50" colspan="6">Sin saldos pendientes en esta moneda.</td></tr>';
+}
+
+function renderGastoCategorias(){
+  const select = document.getElementById('gasto-categoria');
+  if(select){
+    const current = select.value;
+    select.innerHTML = '<option value="">Sin categoría</option>' +
+      state.gastoCategorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if(state.gastoCategorias.includes(current)) select.value = current;
+  }
+
+  const lista = document.getElementById('gasto-categorias-lista');
+  if(!lista) return;
+  if(state.gastoCategorias.length === 0){
+    lista.innerHTML = '<p class="text-sm opacity-50">No hay categorías cargadas. Agregá una abajo.</p>';
+    return;
+  }
+  lista.innerHTML = state.gastoCategorias.map((c, i) => `
+    <div class="flex items-center gap-2 bg-paper border border-line rounded-lg px-3 py-1.5">
+      <span class="text-sm">${esc(c)}</span>
+      <button type="button" onclick="renameGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100">Renombrar</button>
+      <button type="button" onclick="deleteGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+    </div>
+  `).join('');
+}
+function addGastoCategoria(){
+  const input = document.getElementById('nueva-gasto-categoria');
+  const nombre = input.value.trim();
+  if(!nombre){ toast('Ingresá un nombre para la categoría.', 'error'); return; }
+  if(state.gastoCategorias.some(c => c.toLowerCase() === nombre.toLowerCase())){
+    toast('Ya existe una categoría con ese nombre.', 'error');
+    return;
+  }
+  state.gastoCategorias.push(nombre);
+  input.value = '';
+  save();
+}
+function renameGastoCategoria(i){
+  const actual = state.gastoCategorias[i];
+  if(actual === undefined) return;
+  const nuevo = prompt('Nuevo nombre para la categoría:', actual);
+  if(nuevo === null) return;
+  const limpio = nuevo.trim();
+  if(!limpio){ toast('El nombre no puede quedar vacío.', 'error'); return; }
+  if(state.gastoCategorias.some((c, idx) => idx !== i && c.toLowerCase() === limpio.toLowerCase())){
+    toast('Ya existe una categoría con ese nombre.', 'error');
+    return;
+  }
+  state.gastoCategorias[i] = limpio;
+  save();
+}
+function deleteGastoCategoria(i){
+  const actual = state.gastoCategorias[i];
+  if(actual === undefined) return;
+  if(!confirm(`¿Eliminar la categoría "${actual}"? Los gastos ya registrados con esta categoría no se modifican.`)) return;
+  state.gastoCategorias.splice(i, 1);
+  save();
 }
 
 function setGastosCurrency(c){
@@ -2760,6 +2831,7 @@ function renderAll(){
   renderCuentas();
   renderClientes();
   renderHistorial();
+  renderGastoCategorias();
 }
 
 /* ====================================================================
@@ -3670,6 +3742,7 @@ function importData(evt){
       state.movs = data.movs;
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
       state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
+      state.gastoCategorias = Array.isArray(data.gastoCategorias) && data.gastoCategorias.length ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
       const maxNo = state.files.reduce((max,f)=>{
         const n = parseInt(f.fileNo, 10);
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
@@ -3687,7 +3760,7 @@ function importData(evt){
 function resetAll(){
   if(!confirm('¿Seguro que querés borrar TODOS los datos (files, clientes, movimientos y saldos)? Esta acción no se puede deshacer.')) return;
   if(!confirm('Última confirmación: se perderá toda la información guardada localmente. ¿Continuar?')) return;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
   save();
 }
 
@@ -3744,6 +3817,7 @@ function initFirebase(){
           state.clientes = data.clientes || [];
           state.nextFileNo = data.nextFileNo || 1;
           state.presupuestos = data.presupuestos || [];
+          state.gastoCategorias = Array.isArray(data.gastoCategorias) && data.gastoCategorias.length ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
           persist();
           buildAjusteCajas();
           renderAll();
