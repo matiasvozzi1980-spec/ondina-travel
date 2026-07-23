@@ -2364,6 +2364,84 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     )) return;
   }
 
+  // Detección de cliente duplicado (solo en creación, no en edición)
+  if(!editingFileId){
+    let clienteDuplicado = null;
+
+    // Buscar por DNI si se ingresó
+    if(clienteDni){
+      clienteDuplicado = state.clientes.find(c =>
+        c.dni && c.dni === clienteDni
+      );
+    }
+    // Buscar por nombre + apellido si no encontró por DNI
+    if(!clienteDuplicado){
+      clienteDuplicado = state.clientes.find(c =>
+        c.nombre.toLowerCase().trim() === clienteNombre.toLowerCase().trim() &&
+        (c.apellido || '').toLowerCase().trim() === clienteApellido.toLowerCase().trim() &&
+        (c.nombre + c.apellido).trim().length > 0
+      );
+    }
+
+    if(clienteDuplicado){
+      const filesDelCliente = state.files.filter(f => f.clienteId === clienteDuplicado.id).length;
+      const detalle = [
+        clienteDuplicado.nombre + (clienteDuplicado.apellido ? ' ' + clienteDuplicado.apellido : ''),
+        clienteDuplicado.dni ? 'DNI: ' + clienteDuplicado.dni : null,
+        clienteDuplicado.telefono ? 'Tel: ' + clienteDuplicado.telefono : null,
+        filesDelCliente + ' file(s) registrado(s)'
+      ].filter(Boolean).join('\n  ');
+
+      if(!confirm(
+        `⚠️ Ya existe un cliente similar en la base:\n\n  ${detalle}\n\n` +
+        `¿Querés usar ese cliente existente en este file?\n\n` +
+        `• "Aceptar" → usa el cliente existente (recomendado)\n` +
+        `• "Cancelar" → crea un cliente nuevo de todas formas`
+      )){
+        // El usuario eligió crear uno nuevo: continúa sin forzar el existente
+        // upsertCliente lo creará como nuevo
+      } else {
+        // El usuario eligió usar el existente: actualizamos los datos si trajo info nueva
+        if(clienteDni && !clienteDuplicado.dni) clienteDuplicado.dni = clienteDni;
+        if(clienteApellido && !clienteDuplicado.apellido) clienteDuplicado.apellido = clienteApellido;
+        if(clienteTelefono && !clienteDuplicado.telefono) clienteDuplicado.telefono = clienteTelefono;
+        if(clienteNacimiento && !clienteDuplicado.nacimiento) clienteDuplicado.nacimiento = clienteNacimiento;
+
+        // Crear el file directamente con el clienteId existente, saltando upsertCliente
+        if(state.files.some(f=>f.fileNo === fileNo)){
+          alert('Ya existe un file con ese número. Elegí otro.');
+          return;
+        }
+        const file = {
+          id: Date.now(),
+          fileNo, fecha,
+          clienteId: clienteDuplicado.id,
+          clienteNombre: clienteDuplicado.nombre,
+          clienteApellido: clienteDuplicado.apellido,
+          clienteDni: clienteDuplicado.dni,
+          clienteNacimiento: clienteDuplicado.nacimiento,
+          clienteTelefono: clienteDuplicado.telefono,
+          destino, mayorista, moneda,
+          costoNeto, precioVenta,
+          comision: precioVenta - costoNeto,
+          saldoCliente: precioVenta,
+          saldoMayorista: costoNeto - creditoMayoristaManual,
+          vencimiento
+        };
+        state.files.push(file);
+        const numericVal = parseInt(fileNo, 10);
+        if(!isNaN(numericVal) && String(numericVal) === fileNo){
+          state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
+        }
+        const wasEditing = editingFileId;
+        closeFileModal();
+        save();
+        if(wasEditing && currentFileId === wasEditing) openDetail(currentFileId);
+        return; // salir temprano — el file ya fue guardado
+      }
+    }
+  }
+
   const clienteId = upsertCliente({
     nombre: clienteNombre, apellido: clienteApellido, dni: clienteDni,
     nacimiento: clienteNacimiento, telefono: clienteTelefono
