@@ -37,6 +37,11 @@
   .label{ display:block; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.6; margin-bottom:4px; font-weight:600; }
   .input{ width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:0.9rem; background:#fff; color:var(--ink); }
   .input:focus{ outline:2px solid var(--teal); outline-offset:1px; }
+  #global-search-results{ position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); max-height:340px; overflow-y:auto; z-index:60; }
+  .gsr-item{ display:block; width:100%; text-align:left; padding:8px 12px; font-size:0.85rem; border-bottom:1px solid var(--line); cursor:pointer; background:none; }
+  .gsr-item:last-child{ border-bottom:0; }
+  .gsr-item:hover{ background:var(--paper); }
+  .gsr-empty{ padding:10px 12px; font-size:0.85rem; opacity:0.5; }
   .btn-primary{ background:var(--teal); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; transition:background .15s ease; }
   .btn-primary:hover{ background:var(--teal-dark); }
   .btn-danger{ background:var(--terracotta); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; }
@@ -261,6 +266,10 @@
         <h1 class="brand-name text-xl sm:text-2xl">Ondina <span class="opacity-70">Travel</span></h1>
         <p class="brand-sub mt-1 hidden sm:block">Panel de gestión — files, cajas y cuentas (USD / ARS)</p>
       </div>
+    </div>
+    <div class="relative flex-1 max-w-xs mx-2 hidden sm:block">
+      <input type="text" id="global-search-input" class="input w-full" placeholder="Buscar file, cliente o DNI..." autocomplete="off" oninput="renderGlobalSearch()" onfocus="renderGlobalSearch()">
+      <div id="global-search-results" class="hidden"></div>
     </div>
     <div class="text-right shrink-0">
       <p class="text-10 sm:text-xs uppercase tracking-widest opacity-50">Hoy</p>
@@ -1600,6 +1609,49 @@ function renderAntiguedad(){
     </tr>
   `).join('') || '<tr><td class="py-3 px-3 opacity-50" colspan="6">Sin saldos pendientes en esta moneda.</td></tr>';
 }
+
+function renderGlobalSearch(){
+  const input = document.getElementById('global-search-input');
+  const box = document.getElementById('global-search-results');
+  const q = input.value.trim().toLowerCase();
+  if(q.length < 2){
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  const matches = state.files.filter(f => {
+    const nombre = clienteNombreCompleto(f).toLowerCase();
+    return (f.fileNo && String(f.fileNo).toLowerCase().includes(q))
+      || nombre.includes(q)
+      || (f.clienteDni && f.clienteDni.toLowerCase().includes(q))
+      || (f.destino && f.destino.toLowerCase().includes(q));
+  }).slice(0, 8);
+
+  if(matches.length === 0){
+    box.innerHTML = '<div class="gsr-empty">Sin resultados</div>';
+  } else {
+    box.innerHTML = matches.map(f => `
+      <button type="button" class="gsr-item" onclick="openFromGlobalSearch(${f.id})">
+        <strong>#${esc(f.fileNo)}</strong> — ${esc(clienteNombreCompleto(f))}
+        <span class="opacity-50"> · ${esc(f.destino || '')}</span>
+      </button>
+    `).join('');
+  }
+  box.classList.remove('hidden');
+}
+function openFromGlobalSearch(id){
+  document.getElementById('global-search-results').classList.add('hidden');
+  document.getElementById('global-search-input').value = '';
+  openDetail(id);
+}
+document.addEventListener('click', function(e){
+  const wrap = document.getElementById('global-search-input');
+  const box = document.getElementById('global-search-results');
+  if(!wrap || !box) return;
+  if(e.target !== wrap && !box.contains(e.target)){
+    box.classList.add('hidden');
+  }
+});
 
 /* ====================================================================
    VENCIMIENTOS Y ALARMAS
