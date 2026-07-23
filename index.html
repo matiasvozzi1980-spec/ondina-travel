@@ -2442,6 +2442,8 @@ function renderHistorial(){
       <td class="py-2 px-3">${esc(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
       <td class="py-2 px-3">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#F3E8FF; color:#6B21A8">${esc(m.categoriaGasto)}</span>` : ''}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
+      <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
