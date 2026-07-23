@@ -287,6 +287,7 @@
   <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
   <button class="tab-btn" data-tab="files" onclick="switchTab('files')">Files<span id="files-alert-dot" class="alert-dot hidden"></span></button>
   <button class="tab-btn" data-tab="listado" onclick="switchTab('listado')">Listado de files</button>
+  <button class="tab-btn" data-tab="presupuestos" onclick="switchTab('presupuestos')">Presupuestos</button>
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
@@ -520,6 +521,33 @@
           </tr>
         </thead>
         <tbody id="listado-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ PRESUPUESTOS ============ -->
+  <section id="tab-presupuestos" class="tab-section hidden">
+    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+      <h2 class="font-display text-2xl">Presupuestos / cotizaciones</h2>
+      <button onclick="openPresupuestoModal()" class="btn-primary">+ Nuevo presupuesto</button>
+    </div>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Fecha</th>
+            <th class="py-2 px-3">Cliente</th>
+            <th class="py-2 px-3">Destino</th>
+            <th class="py-2 px-3">Mayorista</th>
+            <th class="py-2 px-3">Moneda</th>
+            <th class="py-2 px-3 text-right">Costo</th>
+            <th class="py-2 px-3 text-right">Precio</th>
+            <th class="py-2 px-3 text-right">Comisión est.</th>
+            <th class="py-2 px-3">Estado</th>
+            <th class="py-2 px-3"></th>
+          </tr>
+        </thead>
+        <tbody id="presupuestos-tbody"></tbody>
       </table>
     </div>
   </section>
@@ -1259,6 +1287,80 @@ service cloud.firestore {
   </div>
 </div>
 
+<!-- ============ MODAL: PRESUPUESTO ============ -->
+<div id="modal-presupuesto" class="modal hidden">
+  <div class="modal-card wide">
+    <div class="flex justify-between items-center mb-4">
+      <h3 id="presupuesto-modal-title" class="font-display text-xl">Nuevo presupuesto</h3>
+      <button onclick="closePresupuestoModal()" class="text-2xl leading-none">&times;</button>
+    </div>
+    <form id="presupuesto-form" class="space-y-3">
+      <div>
+        <label class="label">Fecha</label>
+        <input type="date" id="presupuesto-fecha" required class="input">
+      </div>
+
+      <div class="border border-line rounded-lg p-3 bg-white">
+        <p class="font-display text-sm mb-2">Datos del cliente</p>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+          <div>
+            <label class="label">Nombre</label>
+            <input type="text" id="presupuesto-cliente-nombre" required class="input" placeholder="Obligatorio">
+          </div>
+          <div>
+            <label class="label">Apellido</label>
+            <input type="text" id="presupuesto-cliente-apellido" class="input" placeholder="Opcional">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="label">DNI</label>
+            <input type="text" id="presupuesto-cliente-dni" class="input" placeholder="Opcional">
+          </div>
+          <div>
+            <label class="label">Teléfono</label>
+            <input type="tel" id="presupuesto-cliente-telefono" class="input" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="label">Destino</label>
+        <input type="text" id="presupuesto-destino" required class="input" placeholder="Ej: Cancún, Bariloche...">
+      </div>
+      <div>
+        <label class="label">Mayorista</label>
+        <input type="text" id="presupuesto-mayorista" class="input" placeholder="Operador / mayorista">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="label">Moneda</label>
+          <select id="presupuesto-moneda" class="input">
+            <option value="USD">USD</option>
+            <option value="ARS">ARS</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Costo neto</label>
+          <input type="number" step="0.01" min="0" id="presupuesto-costo" required class="input" value="0">
+        </div>
+        <div>
+          <label class="label">Precio venta</label>
+          <input type="number" step="0.01" min="0" id="presupuesto-precio" required class="input" value="0">
+        </div>
+      </div>
+
+      <div>
+        <label class="label">Notas (opcional)</label>
+        <textarea id="presupuesto-notas" class="input" rows="2" placeholder="Detalles del itinerario, vigencia de la cotización, etc."></textarea>
+      </div>
+
+      <button type="submit" class="btn-primary w-full">Guardar presupuesto</button>
+    </form>
+  </div>
+</div>
+
 <!-- ============ MODAL: DETALLE / GESTIÓN DE FILE ============ -->
 <div id="modal-detail" class="modal hidden">
   <div class="modal-card wide">
@@ -1352,9 +1454,11 @@ const STORAGE_KEY = 'bitacora_viajes_v2';
 const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
 
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1 };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
 let currentFileId = null;
 let editingFileId = null;
+let convertingPresupuestoId = null;
+let editingPresupuestoId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
 let dashPeriod = 'todo';
@@ -1426,6 +1530,7 @@ function load(){
       state.movs = data.movs || [];
       state.clientes = data.clientes || [];
       state.nextFileNo = data.nextFileNo || 1;
+      state.presupuestos = data.presupuestos || [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     return;
   }
@@ -1795,6 +1900,9 @@ function switchTab(name){
   if(name === 'reportes'){
     renderReporteMensual();
     renderAntiguedad();
+  }
+  if(name === 'presupuestos'){
+    renderPresupuestos();
   }
 }
 function setDashCurrency(c){
@@ -2589,6 +2697,7 @@ function closeFileModal(){
   document.getElementById('modal-file').classList.add('hidden');
   document.getElementById('file-fileno').disabled = false;
   editingFileId = null;
+  convertingPresupuestoId = null;
 }
 function updateComisionPreview(){
   const costo = parseFloat(document.getElementById('file-costo').value) || 0;
@@ -2599,6 +2708,158 @@ function updateComisionPreview(){
 document.getElementById('file-costo').addEventListener('input', updateComisionPreview);
 document.getElementById('file-precio').addEventListener('input', updateComisionPreview);
 document.getElementById('file-moneda').addEventListener('change', updateComisionPreview);
+
+/* ====================================================================
+   PRESUPUESTOS / COTIZACIONES
+==================================================================== */
+function renderPresupuestos(){
+  const tbody = document.getElementById('presupuestos-tbody');
+  const lista = state.presupuestos.slice().sort((a,b)=> b.fecha.localeCompare(a.fecha) || (b.id - a.id));
+  if(lista.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-sm opacity-50">Todavía no hay presupuestos cargados.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = lista.map(p => {
+    const nombre = [p.clienteNombre, p.clienteApellido].filter(Boolean).join(' ') || '—';
+    const comision = p.precioVenta - p.costoNeto;
+    const estadoBadgeHtml = p.estado === 'convertido'
+      ? `<span class="badge" style="background:#DCFCE7; color:#166534">Convertido a file${p.fileNo ? ' #'+esc(p.fileNo) : ''}</span>`
+      : `<span class="badge" style="background:#FEF3C7; color:#92400E">Pendiente</span>`;
+    return `
+    <tr class="border-b border-line">
+      <td class="py-2 px-3">${esc(p.fecha)}</td>
+      <td class="py-2 px-3">${esc(nombre)}</td>
+      <td class="py-2 px-3">${esc(p.destino)}</td>
+      <td class="py-2 px-3">${esc(p.mayorista || '—')}</td>
+      <td class="py-2 px-3">${p.moneda}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(p.costoNeto, p.moneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(p.precioVenta, p.moneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num" style="color:var(--gold)">${fmt(comision, p.moneda)}</td>
+      <td class="py-2 px-3">${estadoBadgeHtml}</td>
+      <td class="py-2 px-3 text-right whitespace-nowrap">
+        ${p.estado !== 'convertido' ? `<button onclick="convertirPresupuestoAFile(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Convertir a file</button>` : ''}
+        <button onclick="openEditPresupuestoModal(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
+        <button onclick="deletePresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </td>
+    </tr>
+  `; }).join('');
+}
+function openPresupuestoModal(){
+  editingPresupuestoId = null;
+  document.getElementById('presupuesto-modal-title').textContent = 'Nuevo presupuesto';
+  document.getElementById('presupuesto-form').reset();
+  document.getElementById('presupuesto-fecha').value = todayStr();
+  document.getElementById('presupuesto-moneda').value = 'USD';
+  document.getElementById('presupuesto-costo').value = '0';
+  document.getElementById('presupuesto-precio').value = '0';
+  document.getElementById('modal-presupuesto').classList.remove('hidden');
+}
+function openEditPresupuestoModal(id){
+  const p = state.presupuestos.find(x=>x.id===id);
+  if(!p) return;
+  editingPresupuestoId = id;
+  document.getElementById('presupuesto-modal-title').textContent = 'Editar presupuesto';
+  document.getElementById('presupuesto-fecha').value = p.fecha;
+  document.getElementById('presupuesto-cliente-nombre').value = p.clienteNombre || '';
+  document.getElementById('presupuesto-cliente-apellido').value = p.clienteApellido || '';
+  document.getElementById('presupuesto-cliente-dni').value = p.clienteDni || '';
+  document.getElementById('presupuesto-cliente-telefono').value = p.clienteTelefono || '';
+  document.getElementById('presupuesto-destino').value = p.destino || '';
+  document.getElementById('presupuesto-mayorista').value = p.mayorista || '';
+  document.getElementById('presupuesto-moneda').value = p.moneda;
+  document.getElementById('presupuesto-costo').value = p.costoNeto;
+  document.getElementById('presupuesto-precio').value = p.precioVenta;
+  document.getElementById('presupuesto-notas').value = p.notas || '';
+  document.getElementById('modal-presupuesto').classList.remove('hidden');
+}
+function closePresupuestoModal(){
+  document.getElementById('modal-presupuesto').classList.add('hidden');
+  editingPresupuestoId = null;
+}
+document.getElementById('presupuesto-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  const fecha = document.getElementById('presupuesto-fecha').value;
+  const clienteNombre = document.getElementById('presupuesto-cliente-nombre').value.trim();
+  const clienteApellido = document.getElementById('presupuesto-cliente-apellido').value.trim();
+  const clienteDni = document.getElementById('presupuesto-cliente-dni').value.trim();
+  const clienteTelefono = document.getElementById('presupuesto-cliente-telefono').value.trim();
+  const destino = document.getElementById('presupuesto-destino').value.trim();
+  const mayorista = document.getElementById('presupuesto-mayorista').value.trim();
+  const moneda = document.getElementById('presupuesto-moneda').value;
+  const costoNeto = parseFloat(document.getElementById('presupuesto-costo').value) || 0;
+  const precioVenta = parseFloat(document.getElementById('presupuesto-precio').value) || 0;
+  const notas = document.getElementById('presupuesto-notas').value.trim();
+
+  if(!fecha || !clienteNombre || !destino){
+    toast('Completá al menos la fecha, el nombre del cliente y el destino.', 'error');
+    return;
+  }
+
+  if(editingPresupuestoId){
+    const p = state.presupuestos.find(x=>x.id===editingPresupuestoId);
+    if(p){
+      p.fecha = fecha;
+      p.clienteNombre = clienteNombre;
+      p.clienteApellido = clienteApellido;
+      p.clienteDni = clienteDni;
+      p.clienteTelefono = clienteTelefono;
+      p.destino = destino;
+      p.mayorista = mayorista;
+      p.moneda = moneda;
+      p.costoNeto = costoNeto;
+      p.precioVenta = precioVenta;
+      p.notas = notas;
+    }
+  } else {
+    state.presupuestos.push({
+      id: Date.now(),
+      fecha, clienteNombre, clienteApellido, clienteDni, clienteTelefono,
+      destino, mayorista, moneda, costoNeto, precioVenta, notas,
+      estado: 'pendiente', fileId: null, fileNo: null
+    });
+  }
+  closePresupuestoModal();
+  save();
+  renderPresupuestos();
+});
+function deletePresupuesto(id){
+  if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
+  state.presupuestos = state.presupuestos.filter(p=>p.id!==id);
+  save();
+  renderPresupuestos();
+}
+function convertirPresupuestoAFile(id){
+  const p = state.presupuestos.find(x=>x.id===id);
+  if(!p) return;
+  convertingPresupuestoId = id;
+  editingFileId = null;
+  document.getElementById('file-modal-title').textContent = `Nuevo file (desde presupuesto)`;
+  document.getElementById('file-form').reset();
+  document.getElementById('file-fecha').value = todayStr();
+  document.getElementById('file-fileno').value = state.nextFileNo;
+  document.getElementById('file-fileno').disabled = false;
+  document.getElementById('file-cliente-nombre').value = p.clienteNombre || '';
+  document.getElementById('file-cliente-apellido').value = p.clienteApellido || '';
+  document.getElementById('file-cliente-dni').value = p.clienteDni || '';
+  document.getElementById('file-cliente-telefono').value = p.clienteTelefono || '';
+  document.getElementById('file-destino').value = p.destino || '';
+  document.getElementById('file-mayorista').value = p.mayorista || '';
+  document.getElementById('file-moneda').value = p.moneda;
+  document.getElementById('file-costo').value = p.costoNeto;
+  document.getElementById('file-precio').value = p.precioVenta;
+  document.getElementById('file-vencimiento').value = '';
+  document.getElementById('file-credito-mayorista').value = '0';
+  updateComisionPreview();
+  document.getElementById('modal-file').classList.remove('hidden');
+}
+function marcarPresupuestoConvertido(presupuestoId, fileId){
+  const p = state.presupuestos.find(x=>x.id===presupuestoId);
+  const f = state.files.find(x=>x.id===fileId);
+  if(!p || !f) return;
+  p.estado = 'convertido';
+  p.fileId = fileId;
+  p.fileNo = f.fileNo;
+}
 
 document.getElementById('file-form').addEventListener('submit', function(e){
   e.preventDefault();
@@ -2716,6 +2977,10 @@ document.getElementById('file-form').addEventListener('submit', function(e){
         if(!isNaN(numericVal) && String(numericVal) === fileNo){
           state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
         }
+        if(convertingPresupuestoId){
+          marcarPresupuestoConvertido(convertingPresupuestoId, file.id);
+          convertingPresupuestoId = null;
+        }
         const wasEditing = editingFileId;
         closeFileModal();
         save();
@@ -2775,6 +3040,10 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     const numericVal = parseInt(fileNo, 10);
     if(!isNaN(numericVal) && String(numericVal) === fileNo){
       state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
+    }
+    if(convertingPresupuestoId){
+      marcarPresupuestoConvertido(convertingPresupuestoId, file.id);
+      convertingPresupuestoId = null;
     }
   }
   const wasEditing = editingFileId;
@@ -3287,6 +3556,7 @@ function importData(evt){
       state.files = data.files;
       state.movs = data.movs;
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
+      state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
       const maxNo = state.files.reduce((max,f)=>{
         const n = parseInt(f.fileNo, 10);
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
@@ -3304,7 +3574,7 @@ function importData(evt){
 function resetAll(){
   if(!confirm('¿Seguro que querés borrar TODOS los datos (files, clientes, movimientos y saldos)? Esta acción no se puede deshacer.')) return;
   if(!confirm('Última confirmación: se perderá toda la información guardada localmente. ¿Continuar?')) return;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1 };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
   save();
 }
 
@@ -3360,6 +3630,7 @@ function initFirebase(){
           state.movs = data.movs || [];
           state.clientes = data.clientes || [];
           state.nextFileNo = data.nextFileNo || 1;
+          state.presupuestos = data.presupuestos || [];
           persist();
           buildAjusteCajas();
           renderAll();
