@@ -368,10 +368,12 @@
       <div class="bg-white rounded-xl border border-line p-4">
         <p class="text-xs uppercase tracking-widest opacity-50">Por cobrar</p>
         <p id="m-porcobrar" class="font-mono-num text-lg sm:text-xl font-semibold mt-1" style="color:var(--terracotta)">$0.00</p>
+        <p class="text-xs opacity-40 mt-1">Deuda real de clientes</p>
       </div>
       <div class="bg-white rounded-xl border border-line p-4">
         <p class="text-xs uppercase tracking-widest opacity-50">Por pagar</p>
         <p id="m-porpagar" class="font-mono-num text-lg sm:text-xl font-semibold mt-1" style="color:var(--slate)">$0.00</p>
+        <p class="text-xs opacity-40 mt-1">Deuda real con mayoristas</p>
       </div>
     </div>
   </section>
@@ -1383,7 +1385,7 @@ function totals(moneda){
       ventas += f.precioVenta;
       costos += f.costoNeto;
       comisiones += f.comision;
-      porCobrar += f.saldoCliente;
+      porCobrar += Math.max(f.saldoCliente, 0);
       porPagar += Math.max(f.saldoMayorista, 0);
     });
   return {ventas, costos, comisiones, porCobrar, porPagar};
