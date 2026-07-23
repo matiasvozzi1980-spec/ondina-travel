@@ -2350,6 +2350,18 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     return;
   }
 
+  // Advertencia de comisión negativa
+  const comisionCalculada = precioVenta - costoNeto;
+  if(comisionCalculada < 0){
+    if(!confirm(
+      `⚠️ El precio de venta es menor al costo neto.\n\n` +
+      `Costo neto:    ${fmt(costoNeto, moneda)}\n` +
+      `Precio venta:  ${fmt(precioVenta, moneda)}\n` +
+      `Comisión:      ${fmt(comisionCalculada, moneda)} (pérdida)\n\n` +
+      `¿Querés guardar el file de todas formas?`
+    )) return;
+  }
+
   const clienteId = upsertCliente({
     nombre: clienteNombre, apellido: clienteApellido, dni: clienteDni,
     nacimiento: clienteNacimiento, telefono: clienteTelefono
