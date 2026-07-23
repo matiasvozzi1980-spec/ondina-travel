@@ -2595,6 +2595,20 @@ document.getElementById('form-pago').addEventListener('submit', function(e){
   const caja = document.getElementById('pago-caja').value;
   if(!monto || monto <= 0){ alert('Ingresá un monto válido.'); return; }
 
+  // Verificación de saldo suficiente en caja
+  const saldoActual = cajaBalance(caja, f.moneda);
+  if(saldoActual < monto){
+    const diferencia = fmt(monto - saldoActual, f.moneda);
+    const saldoFmt = fmt(saldoActual, f.moneda);
+    if(!confirm(
+      `⚠️ La caja "${CAJA_LABELS[caja]}" no tiene saldo suficiente en ${f.moneda}.\n\n` +
+      `Saldo disponible: ${saldoFmt}\n` +
+      `Monto a pagar: ${fmt(monto, f.moneda)}\n` +
+      `La caja quedaría en negativo por ${diferencia}.\n\n` +
+      `¿Querés registrar el pago de todas formas?`
+    )) return;
+  }
+
   f.saldoMayorista -= monto;
   state.movs.push({
     id: Date.now(),
@@ -2660,6 +2674,20 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   if(!fecha || !concepto || !monto || monto <= 0){
     alert('Completá fecha, concepto y un monto válido.');
     return;
+  }
+
+  // Verificación de saldo suficiente en caja
+  const saldoActual = cajaBalance(caja, moneda);
+  if(saldoActual < monto){
+    const diferencia = fmt(monto - saldoActual, moneda);
+    const saldoFmt = fmt(saldoActual, moneda);
+    if(!confirm(
+      `⚠️ La caja "${CAJA_LABELS[caja]}" no tiene saldo suficiente en ${moneda}.\n\n` +
+      `Saldo disponible: ${saldoFmt}\n` +
+      `Monto del gasto: ${fmt(monto, moneda)}\n` +
+      `La caja quedaría en negativo por ${diferencia}.\n\n` +
+      `¿Querés registrar el gasto de todas formas?`
+    )) return;
   }
 
   state.movs.push({
