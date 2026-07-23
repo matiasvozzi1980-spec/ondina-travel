@@ -221,10 +221,19 @@
     .lg\:grid-cols-5{ grid-template-columns:repeat(5,minmax(0,1fr)); }
     .lg\:grid-cols-6{ grid-template-columns:repeat(6,minmax(0,1fr)); }
   }
+
+  #toast-container{ position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:center; width:calc(100% - 32px); max-width:420px; pointer-events:none; }
+  .toast{ pointer-events:auto; background:#1f2937; color:#fff; padding:10px 16px; border-radius:8px; font-size:0.875rem; line-height:1.3; box-shadow:0 4px 12px rgba(0,0,0,0.2); opacity:0; transform:translateY(-8px); transition:opacity .2s ease, transform .2s ease; max-width:100%; text-align:center; }
+  .toast.toast-show{ opacity:1; transform:translateY(0); }
+  .toast.toast-hide{ opacity:0; transform:translateY(-8px); }
+  .toast-info{ background:#374151; }
+  .toast-error{ background:#b91c1c; }
+  .toast-success{ background:#15803d; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
+<div id="toast-container"></div>
 
 <div id="pin-gate" class="modal hidden" style="z-index:200;">
   <div class="modal-card" style="max-width:22rem; text-align:center;">
@@ -1351,6 +1360,20 @@ function sortFileNo(a, b){
   if(!isNaN(na) && !isNaN(nb)) return na - nb;
   return String(a).localeCompare(String(b), 'es', { numeric: true });
 }
+function toast(msg, type){
+  const cont = document.getElementById('toast-container');
+  if(!cont){ window.alert(msg); return; }
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = msg;
+  cont.appendChild(el);
+  requestAnimationFrame(function(){ el.classList.add('toast-show'); });
+  setTimeout(function(){
+    el.classList.remove('toast-show');
+    el.classList.add('toast-hide');
+    setTimeout(function(){ el.remove(); }, 250);
+  }, 3200);
+}
 function fmt(n, moneda){
   const sym = MONEDA_SYM[moneda] || '$';
   return sym + ' ' + (Number(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1490,7 +1513,7 @@ document.getElementById('cliente-form').addEventListener('submit', function(e){
   const c = state.clientes.find(x=>x.id===editingClienteId);
   if(!c) return;
   const nombre = document.getElementById('cliente-nombre').value.trim();
-  if(!nombre){ alert('El nombre es obligatorio.'); return; }
+  if(!nombre){ toast('El nombre es obligatorio.', 'error'); return; }
 
   c.nombre = nombre;
   c.apellido = document.getElementById('cliente-apellido').value.trim();
@@ -1833,10 +1856,10 @@ function waEliminarContacto(i){
 }
 function waGuardarNuevo(){
   var num = document.getElementById('wa-numero-nuevo').value.trim().replace(/\D/g,'');
-  if(!num){ alert('Ingresá un número válido.'); return; }
+  if(!num){ toast('Ingresá un número válido.', 'error'); return; }
   var nombre = prompt('Nombre para este contacto (ej: Ivana, Freeway...)') || num;
   var list = waLoadContactos();
-  if(list.some(function(c){ return c.numero===num; })){ alert('Este número ya está guardado.'); return; }
+  if(list.some(function(c){ return c.numero===num; })){ toast('Este número ya está guardado.', 'error'); return; }
   list.push({ nombre: nombre.trim(), numero: num });
   waSaveContactos(list);
   document.getElementById('wa-numero-nuevo').value = '';
@@ -1855,7 +1878,7 @@ function closeWaModal(){
 }
 function waEnviarNumero(numero){
   numero = (numero || '').replace(/\D/g,'');
-  if(!numero){ alert('Ingresá un número válido.'); return; }
+  if(!numero){ toast('Ingresá un número válido.', 'error'); return; }
   closeWaModal();
   var hoy = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
   var msg = 'Hola, te comparto el reporte de cuentas corrientes de Ondina Travel al ' + hoy + '. Adjunto la imagen descargada.';
@@ -2209,7 +2232,7 @@ function aplicarAjusteFavor(){
   if(!favorModalMayorista) return;
   const tipo = document.getElementById('favor-ajuste-tipo').value;
   const monto = parseFloat(document.getElementById('favor-ajuste-monto').value) || 0;
-  if(monto <= 0){ alert('Ingresá un monto válido.'); return; }
+  if(monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
   const filesConFavor = state.files
     .filter(f => f.mayorista === favorModalMayorista && f.moneda === favorModalMoneda && f.saldoMayorista < 0)
@@ -2219,7 +2242,7 @@ function aplicarAjusteFavor(){
     // Agregar crédito: se distribuye entre los files existentes con crédito (aumenta el más antiguo)
     // O si no hay files con crédito, no hay dónde ponerlo — informar
     if(filesConFavor.length === 0){
-      alert('No hay files con saldo a favor para este mayorista. Usá "Editar" en un file específico para agregar crédito directamente.');
+      toast('No hay files con saldo a favor para este mayorista. Usá "Editar" en un file específico para agregar crédito directamente.', 'error');
       return;
     }
     let restante = monto;
@@ -2239,7 +2262,7 @@ function aplicarAjusteFavor(){
       restante -= usar;
     });
     if(restante > 0){
-      alert(`Solo se pudo reducir ${fmt(monto - restante, favorModalMoneda)} porque no había suficiente crédito acumulado.`);
+      toast(`Solo se pudo reducir ${fmt(monto - restante, favorModalMoneda)} porque no había suficiente crédito acumulado.`, 'info');
     }
   }
 
@@ -2344,11 +2367,11 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const creditoMayoristaManual = parseFloat(document.getElementById('file-credito-mayorista').value) || 0;
 
   if(!fileNo){
-    alert('Ingresá un número o código de file válido.');
+    toast('Ingresá un número o código de file válido.', 'error');
     return;
   }
   if(!fecha || !clienteNombre || !destino){
-    alert('Completá al menos la fecha, el nombre del cliente y el destino.');
+    toast('Completá al menos la fecha, el nombre del cliente y el destino.', 'error');
     return;
   }
 
@@ -2360,6 +2383,14 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       `Costo neto:    ${fmt(costoNeto, moneda)}\n` +
       `Precio venta:  ${fmt(precioVenta, moneda)}\n` +
       `Comisión:      ${fmt(comisionCalculada, moneda)} (pérdida)\n\n` +
+      `¿Querés guardar el file de todas formas?`
+    )) return;
+  }
+
+  // Validación de fecha de vencimiento coherente
+  if(vencimiento && fecha && vencimiento < fecha){
+    if(!confirm(
+      `⚠️ La fecha de vencimiento (${vencimiento}) es anterior a la fecha del file (${fecha}).\n\n` +
       `¿Querés guardar el file de todas formas?`
     )) return;
   }
@@ -2409,7 +2440,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
 
         // Crear el file directamente con el clienteId existente, saltando upsertCliente
         if(state.files.some(f=>f.fileNo === fileNo)){
-          alert('Ya existe un file con ese número. Elegí otro.');
+          toast('Ya existe un file con ese número. Elegí otro.', 'error');
           return;
         }
         const file = {
@@ -2473,7 +2504,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     f.saldoMayorista = (costoNeto - pagadoPrevio) - creditoMayoristaManual;
   } else {
     if(state.files.some(f=>f.fileNo === fileNo)){
-      alert('Ya existe un file con ese número. Elegí otro.');
+      toast('Ya existe un file con ese número. Elegí otro.', 'error');
       return;
     }
     const file = {
@@ -2638,7 +2669,7 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
   if(!f) return;
   const monto = parseFloat(document.getElementById('cobro-monto').value);
   const caja = document.getElementById('cobro-caja').value;
-  if(!monto || monto <= 0){ alert('Ingresá un monto válido.'); return; }
+  if(!monto || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
   f.saldoCliente -= monto;
   state.movs.push({
@@ -2656,9 +2687,9 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
 function usarCreditoMayorista(){
   const f = state.files.find(x=>x.id===currentFileId);
   if(!f) return;
-  if(f.saldoMayorista <= 0){ alert('Este file no tiene saldo pendiente con el mayorista.'); return; }
+  if(f.saldoMayorista <= 0){ toast('Este file no tiene saldo pendiente con el mayorista.', 'error'); return; }
   const credito = creditoMayoristaDisponible(f.mayorista, f.moneda, f.id);
-  if(credito <= 0){ alert('No hay saldo a favor disponible con este mayorista.'); return; }
+  if(credito <= 0){ toast('No hay saldo a favor disponible con este mayorista.', 'error'); return; }
 
   const aplicar = Math.min(credito, f.saldoMayorista);
   if(!confirm(`¿Aplicar ${fmt(aplicar, f.moneda)} de saldo a favor con ${f.mayorista} a este file? No se moverá dinero de ninguna caja.`)) return;
@@ -2685,7 +2716,7 @@ document.getElementById('form-pago').addEventListener('submit', function(e){
   if(!f) return;
   const monto = parseFloat(document.getElementById('pago-monto').value);
   const caja = document.getElementById('pago-caja').value;
-  if(!monto || monto <= 0){ alert('Ingresá un monto válido.'); return; }
+  if(!monto || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
   // Verificación de saldo suficiente en caja
   const saldoActual = cajaBalance(caja, f.moneda);
@@ -2740,7 +2771,7 @@ document.getElementById('form-ingreso').addEventListener('submit', function(e){
   const caja = document.getElementById('ingreso-caja').value;
 
   if(!fecha || !concepto || !monto || monto <= 0){
-    alert('Completá fecha, concepto y un monto válido.');
+    toast('Completá fecha, concepto y un monto válido.', 'error');
     return;
   }
 
@@ -2764,7 +2795,7 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   const caja = document.getElementById('gasto-caja').value;
 
   if(!fecha || !concepto || !monto || monto <= 0){
-    alert('Completá fecha, concepto y un monto válido.');
+    toast('Completá fecha, concepto y un monto válido.', 'error');
     return;
   }
 
@@ -2885,11 +2916,11 @@ document.getElementById('mov-form').addEventListener('submit', function(e){
   const caja = m.caja ? document.getElementById('mov-caja').value : m.caja;
 
   if(!fecha || !concepto || !monto || monto <= 0){
-    alert('Completá fecha, concepto y un monto válido.');
+    toast('Completá fecha, concepto y un monto válido.', 'error');
     return;
   }
   if(m.categoria === 'credito-mayorista' && moneda !== m.moneda){
-    alert('No se puede cambiar la moneda de un movimiento de saldo a favor con mayorista.');
+    toast('No se puede cambiar la moneda de un movimiento de saldo a favor con mayorista.', 'error');
     return;
   }
 
@@ -2946,10 +2977,10 @@ function buildAjusteCajas(){
 function adjustCaja(caja, moneda){
   const input = document.getElementById(`adjust-${caja}-${moneda}`);
   const target = parseFloat(input.value);
-  if(isNaN(target)){ alert('Ingresá un número válido.'); return; }
+  if(isNaN(target)){ toast('Ingresá un número válido.', 'error'); return; }
   const current = cajaBalance(caja, moneda);
   const diff = target - current;
-  if(diff === 0){ alert(`El saldo de ${CAJA_LABELS[caja]} en ${moneda} ya es ese valor.`); return; }
+  if(diff === 0){ toast(`El saldo de ${CAJA_LABELS[caja]} en ${moneda} ya es ese valor.`, 'info'); return; }
 
   state.movs.push({
     id: Date.now(),
@@ -2963,7 +2994,7 @@ function adjustCaja(caja, moneda){
   });
   input.value = '';
   save();
-  alert(`Saldo de ${CAJA_LABELS[caja]} (${moneda}) ajustado a ${fmt(target, moneda)}.`);
+  toast(`Saldo de ${CAJA_LABELS[caja]} (${moneda}) ajustado a ${fmt(target, moneda)}.`, 'success');
 }
 
 /* ====================================================================
@@ -3000,9 +3031,9 @@ function importData(evt){
       }, 0);
       state.nextFileNo = data.nextFileNo || (maxNo + 1);
       save();
-      alert('Datos importados correctamente.');
+      toast('Datos importados correctamente.', 'success');
     }catch(err){
-      alert('No se pudo importar el archivo: ' + err.message);
+      toast('No se pudo importar el archivo: ' + err.message, 'error');
     }
   };
   reader.readAsText(file);
@@ -3103,16 +3134,16 @@ function pushToCloud(){
 }
 function connectSync(){
   const raw = document.getElementById('sync-config-input').value.trim();
-  if(!raw){ alert('Pegá o generá un código de conexión primero.'); return; }
+  if(!raw){ toast('Pegá o generá un código de conexión primero.', 'error'); return; }
   let parsed;
-  try{ parsed = JSON.parse(raw); }catch(e){ alert('El código de conexión no es un JSON válido.'); return; }
+  try{ parsed = JSON.parse(raw); }catch(e){ toast('El código de conexión no es un JSON válido.', 'error'); return; }
   if(!parsed.firebaseConfig || !parsed.firebaseConfig.apiKey || !parsed.firebaseConfig.projectId){
-    alert('El código de conexión no incluye una configuración de Firebase válida (faltan apiKey o projectId).');
+    toast('El código de conexión no incluye una configuración de Firebase válida (faltan apiKey o projectId).', 'error');
     return;
   }
   storageSet(SYNC_CONFIG_KEY, JSON.stringify(parsed));
   storageSet(PIN_VERIFIED_KEY, '');
-  alert('Conexión guardada. La página se va a recargar para aplicar los cambios.');
+  toast('Conexión guardada. La página se va a recargar para aplicar los cambios.', 'success');
   location.reload();
 }
 function disconnectSync(){
@@ -3131,7 +3162,7 @@ function generateSyncConfig(){
     appId: document.getElementById('gen-appId').value.trim()
   };
   if(!cfg.apiKey || !cfg.projectId){
-    alert('Completá al menos apiKey y projectId.');
+    toast('Completá al menos apiKey y projectId.', 'error');
     return;
   }
   const out = {
@@ -3180,7 +3211,7 @@ function gdriveLoadClientId(){
 }
 function gdriveGuardarClientId(){
   var id = (document.getElementById('gdrive-client-id').value || '').trim();
-  if(!id){ alert('Pegá un Client ID válido.'); return; }
+  if(!id){ toast('Pegá un Client ID válido.', 'error'); return; }
   storageSet(GDRIVE_KEY, id);
   gdriveInit();
 }
@@ -3238,7 +3269,7 @@ function gdriveInitTokenClient(clientId){
       client_id: clientId,
       scope: GDRIVE_SCOPE,
       callback: function(resp){
-        if(resp.error){ alert('Error de autorización con Google: ' + resp.error); return; }
+        if(resp.error){ toast('Error de autorización con Google: ' + resp.error, 'error'); return; }
         gdriveAccessToken = resp.access_token;
         gdriveRenderStatus(true);
         gdriveSubirBackup();
