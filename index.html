@@ -234,6 +234,9 @@
   .toast-info{ background:#374151; }
   .toast-error{ background:#b91c1c; }
   .toast-success{ background:#15803d; }
+  .sortable-th{ cursor:pointer; user-select:none; }
+  .sortable-th:hover{ opacity:0.8; }
+  .sort-arrow{ display:inline-block; margin-left:3px; font-size:0.7em; opacity:0.6; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -417,20 +420,20 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Nº</th>
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Cliente</th>
-            <th class="py-2 px-3">Destino</th>
-            <th class="py-2 px-3">Mayorista</th>
-            <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right">Costo neto</th>
-            <th class="py-2 px-3 text-right">Precio venta</th>
-            <th class="py-2 px-3 text-right">Comisión</th>
-            <th class="py-2 px-3 text-right">Saldo cliente</th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','fileNo')">Nº<span id="sort-arrow-files-fileNo" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','fecha')">Fecha<span id="sort-arrow-files-fecha" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','cliente')">Cliente<span id="sort-arrow-files-cliente" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','destino')">Destino<span id="sort-arrow-files-destino" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','mayorista')">Mayorista<span id="sort-arrow-files-mayorista" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','moneda')">Moneda<span id="sort-arrow-files-moneda" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('files','costo')">Costo neto<span id="sort-arrow-files-costo" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('files','precio')">Precio venta<span id="sort-arrow-files-precio" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('files','comision')">Comisión<span id="sort-arrow-files-comision" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('files','saldoCliente')">Saldo cliente<span id="sort-arrow-files-saldoCliente" class="sort-arrow"></span></th>
             <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right">Saldo mayorista</th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('files','saldoMayorista')">Saldo mayorista<span id="sort-arrow-files-saldoMayorista" class="sort-arrow"></span></th>
             <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3">Vencimiento</th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('files','vencimiento')">Vencimiento<span id="sort-arrow-files-vencimiento" class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="files-tbody"></tbody>
@@ -504,20 +507,20 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Nº</th>
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Cliente</th>
-            <th class="py-2 px-3">Destino</th>
-            <th class="py-2 px-3">Mayorista</th>
-            <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right">Costo neto</th>
-            <th class="py-2 px-3 text-right">Precio venta</th>
-            <th class="py-2 px-3 text-right">Comisión</th>
-            <th class="py-2 px-3 text-right">Saldo cliente</th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','fileNo')">Nº<span id="sort-arrow-listado-fileNo" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','fecha')">Fecha<span id="sort-arrow-listado-fecha" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','cliente')">Cliente<span id="sort-arrow-listado-cliente" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','destino')">Destino<span id="sort-arrow-listado-destino" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','mayorista')">Mayorista<span id="sort-arrow-listado-mayorista" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','moneda')">Moneda<span id="sort-arrow-listado-moneda" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('listado','costo')">Costo neto<span id="sort-arrow-listado-costo" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('listado','precio')">Precio venta<span id="sort-arrow-listado-precio" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('listado','comision')">Comisión<span id="sort-arrow-listado-comision" class="sort-arrow"></span></th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('listado','saldoCliente')">Saldo cliente<span id="sort-arrow-listado-saldoCliente" class="sort-arrow"></span></th>
             <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right">Saldo mayorista</th>
+            <th class="py-2 px-3 text-right sortable-th" onclick="setSortFiles('listado','saldoMayorista')">Saldo mayorista<span id="sort-arrow-listado-saldoMayorista" class="sort-arrow"></span></th>
             <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3">Vencimiento</th>
+            <th class="py-2 px-3 sortable-th" onclick="setSortFiles('listado','vencimiento')">Vencimiento<span id="sort-arrow-listado-vencimiento" class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="listado-tbody"></tbody>
@@ -1511,6 +1514,10 @@ let reporteAnio = null;
 let antiguedadCurrency = 'USD';
 let gastosCurrency = 'USD';
 let reporteGastosAnio = null;
+let sortState = {
+  files: { col: 'fileNo', dir: 1 },
+  listado: { col: 'fileNo', dir: 1 }
+};
 
 function periodRange(){
   const hoy = todayStr();
@@ -1616,6 +1623,50 @@ function sortFileNo(a, b){
   const na = parseFloat(a); const nb = parseFloat(b);
   if(!isNaN(na) && !isNaN(nb)) return na - nb;
   return String(a).localeCompare(String(b), 'es', { numeric: true });
+}
+function setSortFiles(context, col){
+  const s = sortState[context];
+  if(s.col === col){
+    s.dir = -s.dir;
+  } else {
+    s.col = col;
+    s.dir = 1;
+  }
+  updateSortIndicators(context);
+  if(context === 'files') renderFilesTable();
+  else renderListado();
+}
+function updateSortIndicators(context){
+  const s = sortState[context];
+  document.querySelectorAll(`[id^="sort-arrow-${context}-"]`).forEach(el => { el.textContent = ''; });
+  const el = document.getElementById(`sort-arrow-${context}-${s.col}`);
+  if(el) el.textContent = s.dir === 1 ? '▲' : '▼';
+}
+function compareFiles(a, b, col){
+  switch(col){
+    case 'fileNo': return sortFileNo(a.fileNo, b.fileNo);
+    case 'fecha': return String(a.fecha||'').localeCompare(String(b.fecha||''));
+    case 'cliente': return clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b), 'es');
+    case 'destino': return String(a.destino||'').localeCompare(String(b.destino||''), 'es');
+    case 'mayorista': return String(a.mayorista||'').localeCompare(String(b.mayorista||''), 'es');
+    case 'moneda': return String(a.moneda||'').localeCompare(String(b.moneda||''));
+    case 'costo': return a.costoNeto - b.costoNeto;
+    case 'precio': return a.precioVenta - b.precioVenta;
+    case 'comision': return a.comision - b.comision;
+    case 'saldoCliente': return a.saldoCliente - b.saldoCliente;
+    case 'saldoMayorista': return a.saldoMayorista - b.saldoMayorista;
+    case 'vencimiento':
+      if(!a.vencimiento && !b.vencimiento) return 0;
+      if(!a.vencimiento) return 1;
+      if(!b.vencimiento) return -1;
+      return String(a.vencimiento).localeCompare(String(b.vencimiento));
+    default: return 0;
+  }
+}
+function sortFilesRows(rows, context){
+  const s = sortState[context];
+  const sorted = rows.slice().sort((a,b) => compareFiles(a, b, s.col) * s.dir);
+  return sorted;
 }
 function toast(msg, type){
   const cont = document.getElementById('toast-container');
@@ -2193,7 +2244,7 @@ function renderFilesTable(){
     return;
   }
   const filtro = document.getElementById('filter-files-estado').value;
-  let rows = [...state.files].sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
+  let rows = sortFilesRows(state.files, 'files');
   if(filtro === 'cliente-pendiente') rows = rows.filter(f=>f.saldoCliente > 0);
   if(filtro === 'mayorista-pendiente') rows = rows.filter(f=>f.saldoMayorista > 0);
   if(filtro === 'sin-deuda') rows = rows.filter(f=>f.saldoCliente <= 0 && f.saldoMayorista <= 0);
@@ -2262,7 +2313,7 @@ function renderListado(){
   if(desde) rows = rows.filter(f=>f.fecha >= desde);
   if(hasta) rows = rows.filter(f=>f.fecha <= hasta);
 
-  rows.sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
+  rows = sortFilesRows(rows, 'listado');
 
   const tbody = document.getElementById('listado-tbody');
   if(rows.length === 0){
@@ -4059,6 +4110,8 @@ function startApp(){
   load();
   buildAjusteCajas();
   renderAll();
+  updateSortIndicators('files');
+  updateSortIndicators('listado');
   if(!storageOK){
     document.getElementById('storage-warning').classList.remove('hidden');
   }
