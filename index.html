@@ -812,6 +812,12 @@
           </select>
         </div>
         <div class="col-span-2">
+          <label class="label">Categoría</label>
+          <select id="gasto-categoria" class="input">
+            <option value="">Sin categoría</option>
+          </select>
+        </div>
+        <div class="col-span-2">
           <label class="label">Caja de la que sale</label>
           <select id="gasto-caja" class="input">
             <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
@@ -923,6 +929,28 @@
           </tr>
         </thead>
         <tbody id="reporte-antiguedad-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 mb-4 mt-8">
+      <h2 class="font-display text-xl opacity-80 mr-auto">Gastos operativos por categoría</h2>
+      <select id="reporte-gastos-anio" class="border border-line rounded-lg px-2 py-1 text-sm" onchange="renderGastosPorCategoria()"></select>
+      <div class="flex border border-line rounded-lg overflow-hidden">
+        <button class="toggle-btn active" data-gastos-currency="USD" onclick="setGastosCurrency('USD')">USD</button>
+        <button class="toggle-btn" data-gastos-currency="ARS" onclick="setGastosCurrency('ARS')">ARS</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-line overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-paper text-left">
+          <tr>
+            <th class="py-2 px-3">Categoría</th>
+            <th class="py-2 px-3 text-right">Total gastado</th>
+            <th class="py-2 px-3 text-right">% del total</th>
+          </tr>
+        </thead>
+        <tbody id="reporte-gastos-tbody"></tbody>
+        <tfoot id="reporte-gastos-tfoot" class="font-semibold"></tfoot>
       </table>
     </div>
   </section>
@@ -1449,6 +1477,8 @@ service cloud.firestore {
 ==================================================================== */
 const CAJAS = ['Banco','Ivana','Raul','Casa','Juli'];
 const CAJA_LABELS = {Banco:'Banco', Ivana:'Ivana', Raul:'Raúl', Casa:'Casa', Juli:'Juli'};
+const GASTO_CATEGORIAS = ['Alquiler', 'Servicios', 'Sueldos', 'Publicidad', 'Insumos', 'Impuestos', 'Comisiones bancarias', 'Otros'];
+document.getElementById('gasto-categoria').innerHTML += GASTO_CATEGORIAS.map(c => `<option value="${c}">${c}</option>`).join('');
 const MONEDAS = ['USD','ARS'];
 const MONEDA_SYM = {USD:'US$', ARS:'AR$'};
 const STORAGE_KEY = 'bitacora_viajes_v2';
@@ -1466,6 +1496,8 @@ let dashPeriod = 'todo';
 let reporteCurrency = 'USD';
 let reporteAnio = null;
 let antiguedadCurrency = 'USD';
+let gastosCurrency = 'USD';
+let reporteGastosAnio = null;
 
 function periodRange(){
   const hoy = todayStr();
@@ -1726,6 +1758,55 @@ function renderAntiguedad(){
   `).join('') || '<tr><td class="py-3 px-3 opacity-50" colspan="6">Sin saldos pendientes en esta moneda.</td></tr>';
 }
 
+function setGastosCurrency(c){
+  gastosCurrency = c;
+  document.querySelectorAll('.toggle-btn[data-gastos-currency]').forEach(b=>b.classList.toggle('active', b.dataset.gastosCurrency===c));
+  renderGastosPorCategoria();
+}
+function renderGastosPorCategoria(){
+  const anioSel = document.getElementById('reporte-gastos-anio');
+  const aniosSet = new Set(state.movs.filter(m=>m.categoria==='gasto').map(m => m.fecha ? m.fecha.slice(0,4) : null).filter(Boolean));
+  aniosSet.add(String(new Date().getFullYear()));
+  const anios = Array.from(aniosSet).sort((a,b)=>b.localeCompare(a));
+  if(anioSel.dataset.built !== anios.join(',')){
+    anioSel.innerHTML = anios.map(a=>`<option value="${a}">${a}</option>`).join('');
+    anioSel.dataset.built = anios.join(',');
+  }
+  if(!reporteGastosAnio || !anios.includes(reporteGastosAnio)) reporteGastosAnio = anios[0];
+  anioSel.value = reporteGastosAnio;
+
+  const gastos = state.movs.filter(m =>
+    m.categoria === 'gasto' && m.moneda === gastosCurrency && m.fecha && m.fecha.slice(0,4) === reporteGastosAnio
+  );
+  const porCategoria = {};
+  let total = 0;
+  gastos.forEach(m => {
+    const cat = m.categoriaGasto || 'Sin categoría';
+    porCategoria[cat] = (porCategoria[cat] || 0) + m.monto;
+    total += m.monto;
+  });
+
+  const filas = Object.entries(porCategoria).sort((a,b) => b[1] - a[1]);
+  const tbody = document.getElementById('reporte-gastos-tbody');
+  tbody.innerHTML = filas.length === 0
+    ? '<tr><td class="py-3 px-3 opacity-50" colspan="3">Sin gastos registrados en este período.</td></tr>'
+    : filas.map(([cat, monto]) => `
+      <tr class="border-t border-line">
+        <td class="py-2 px-3">${esc(cat)}</td>
+        <td class="py-2 px-3 text-right font-mono-num">${fmt(monto, gastosCurrency)}</td>
+        <td class="py-2 px-3 text-right">${total > 0 ? ((monto/total)*100).toFixed(1) : '0.0'}%</td>
+      </tr>
+    `).join('');
+
+  document.getElementById('reporte-gastos-tfoot').innerHTML = `
+    <tr class="border-t border-line bg-paper">
+      <td class="py-2 px-3">Total</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(total, gastosCurrency)}</td>
+      <td class="py-2 px-3 text-right">100.0%</td>
+    </tr>
+  `;
+}
+
 function renderGlobalSearch(){
   const input = document.getElementById('global-search-input');
   const box = document.getElementById('global-search-results');
@@ -1928,6 +2009,7 @@ function switchTab(name){
   if(name === 'reportes'){
     renderReporteMensual();
     renderAntiguedad();
+    renderGastosPorCategoria();
   }
   if(name === 'presupuestos'){
     renderPresupuestos();
@@ -2195,9 +2277,7 @@ function renderHistorial(){
     <tr class="border-b border-line">
       <td class="py-2 px-3">${esc(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
-      <td class="py-2 px-3">${esc(m.concepto)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
-      <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
+      <td class="py-2 px-3">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#F3E8FF; color:#6B21A8">${esc(m.categoriaGasto)}</span>` : ''}</td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
@@ -3356,6 +3436,7 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   const monto = parseFloat(document.getElementById('gasto-monto').value);
   const moneda = document.getElementById('gasto-moneda').value;
   const caja = document.getElementById('gasto-caja').value;
+  const categoriaGasto = document.getElementById('gasto-categoria').value || null;
 
   if(!fecha || !concepto || !monto || monto <= 0){
     toast('Completá fecha, concepto y un monto válido.', 'error');
@@ -3379,7 +3460,7 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   state.movs.push({
     id: Date.now(),
     fecha, fileId: null, fileNo: null,
-    concepto, monto, moneda, tipo: 'egreso', caja, categoria: 'gasto'
+    concepto, monto, moneda, tipo: 'egreso', caja, categoria: 'gasto', categoriaGasto
   });
 
   document.getElementById('form-gasto').reset();
