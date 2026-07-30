@@ -1326,10 +1326,18 @@ function sortRows(rows, table){
 
   return [...rows].sort((a, b) => {
     let va, vb;
-    // Obtener valor según la columna
+
     if(col === 'fileNo')          { return sortFileNo(a.fileNo, b.fileNo) * mult; }
     if(col === 'fecha')           { va = a.fecha || ''; vb = b.fecha || ''; }
-    else if(col === 'cliente')    { va = clienteNombreCompleto(a).toLowerCase(); vb = clienteNombreCompleto(b).toLowerCase(); }
+    else if(col === 'cliente'){
+      // files have clienteNombre; clientes have nombre
+      va = (a.clienteNombre || a.nombre || '').toLowerCase() + ' ' + (a.clienteApellido || a.apellido || '').toLowerCase();
+      vb = (b.clienteNombre || b.nombre || '').toLowerCase() + ' ' + (b.clienteApellido || b.apellido || '').toLowerCase();
+    }
+    else if(col === 'nombre')     { va = (a.nombre || '').toLowerCase(); vb = (b.nombre || '').toLowerCase(); }
+    else if(col === 'apellido')   { va = (a.apellido || '').toLowerCase(); vb = (b.apellido || '').toLowerCase(); }
+    else if(col === 'dni')        { va = a.dni || ''; vb = b.dni || ''; }
+    else if(col === 'nacimiento') { va = a.nacimiento || ''; vb = b.nacimiento || ''; }
     else if(col === 'destino')    { va = (a.destino || '').toLowerCase(); vb = (b.destino || '').toLowerCase(); }
     else if(col === 'mayorista')  { va = (a.mayorista || '').toLowerCase(); vb = (b.mayorista || '').toLowerCase(); }
     else if(col === 'vencimiento'){ va = a.vencimiento || 'zzz'; vb = b.vencimiento || 'zzz'; }
@@ -1339,7 +1347,6 @@ function sortRows(rows, table){
     else if(col === 'saldoCliente'){ va = a.saldoCliente || 0; vb = b.saldoCliente || 0; }
     else if(col === 'saldoMayorista'){ va = a.saldoMayorista || 0; vb = b.saldoMayorista || 0; }
     else if(col === 'pct'){
-      // Para cc-clientes y cc-mayoristas: porcentaje cobrado/pagado
       if(table === 'cc-clientes'){
         va = a.precioVenta > 0 ? (a.precioVenta - a.saldoCliente) / a.precioVenta : 0;
         vb = b.precioVenta > 0 ? (b.precioVenta - b.saldoCliente) / b.precioVenta : 0;
@@ -1348,13 +1355,8 @@ function sortRows(rows, table){
         vb = b.costoNeto > 0 ? (b.costoNeto - Math.max(b.saldoMayorista,0)) / b.costoNeto : 0;
       }
     }
-    // Clientes
-    else if(col === 'nombre')     { va = (a.nombre || '').toLowerCase(); vb = (b.nombre || '').toLowerCase(); }
-    else if(col === 'apellido')   { va = (a.apellido || '').toLowerCase(); vb = (b.apellido || '').toLowerCase(); }
-    else if(col === 'dni')        { va = a.dni || ''; vb = b.dni || ''; }
-    else if(col === 'nacimiento') { va = a.nacimiento || ''; vb = b.nacimiento || ''; }
-    else if(col === 'nfiles')     { va = 0; vb = 0; } // handled specially
-    else if(col === 'saldo')      { va = 0; vb = 0; } // handled specially
+    else if(col === 'nfiles')     { va = a._nfiles || 0; vb = b._nfiles || 0; }
+    else if(col === 'saldo')      { va = (a._pendUSD || 0) + (a._pendARS || 0); vb = (b._pendUSD || 0) + (b._pendARS || 0); }
     else { va = ''; vb = ''; }
 
     if(typeof va === 'number') return (va - vb) * mult;
@@ -1893,17 +1895,8 @@ function renderClientes(){
     return Object.assign({}, c, { _nfiles: files.length, _pendUSD: pendUSD, _pendARS: pendARS, _files: files });
   });
 
-  // Ordenar — nfiles y saldo usan campos calculados
-  const s = sortState['clientes'];
-  if(s && s.col === 'nfiles'){
-    const mult = s.dir === 'asc' ? 1 : -1;
-    rows.sort((a,b)=>(a._nfiles - b._nfiles) * mult);
-  } else if(s && s.col === 'saldo'){
-    const mult = s.dir === 'asc' ? 1 : -1;
-    rows.sort((a,b)=>((a._pendUSD + a._pendARS) - (b._pendUSD + b._pendARS)) * mult);
-  } else {
-    rows = sortRows(rows, 'clientes');
-  }
+  // Ordenar con sortRows (maneja todos los casos incluyendo nfiles y saldo)
+  rows = sortRows(rows, 'clientes');
 
   const tbody = document.getElementById('clientes-tbody');
   if(rows.length === 0){
