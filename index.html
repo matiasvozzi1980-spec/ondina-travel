@@ -509,6 +509,20 @@
         </thead>
         <tbody id="listado-tbody"></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- ============ CLIENTES ============ -->
+  <section id="tab-clientes" class="tab-section hidden">
+    <h2 class="font-display text-2xl mb-4">Base de clientes</h2>
+    <p class="text-sm opacity-70 mb-3">Esta base se completa automáticamente cada vez que creás un file nuevo. El nombre es obligatorio; apellido, DNI, fecha de nacimiento y teléfono son opcionales.</p>
+    <div class="mb-3 max-w-sm">
+      <label class="label">Buscar</label>
+      <input type="text" id="clientes-buscar" oninput="renderClientes()" placeholder="Nombre, apellido o DNI..." class="input">
+    </div>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
             <th class="py-2 px-3 th-sort" data-table="clientes" data-col="nombre">Nombre</th>
             <th class="py-2 px-3 th-sort" data-table="clientes" data-col="apellido">Apellido</th>
@@ -517,21 +531,6 @@
             <th class="py-2 px-3">Teléfono</th>
             <th class="py-2 px-3 text-center th-sort" data-table="clientes" data-col="nfiles">Nº de files</th>
             <th class="py-2 px-3 text-right th-sort" data-table="clientes" data-col="saldo">Saldo pendiente</th>
-            <th class="py-2 px-3"></th>
-          </tr>
-      <input type="text" id="clientes-buscar" oninput="renderClientes()" placeholder="Nombre, apellido o DNI..." class="input">
-    </div>
-    <div class="overflow-x-auto bg-white rounded-xl border border-line">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Nombre</th>
-            <th class="py-2 px-3">Apellido</th>
-            <th class="py-2 px-3">DNI</th>
-            <th class="py-2 px-3">F. nacimiento</th>
-            <th class="py-2 px-3">Teléfono</th>
-            <th class="py-2 px-3 text-center">Nº de files</th>
-            <th class="py-2 px-3 text-right">Saldo pendiente</th>
             <th class="py-2 px-3"></th>
           </tr>
         </thead>
