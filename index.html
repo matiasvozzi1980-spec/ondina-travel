@@ -3525,6 +3525,7 @@ async function gdriveSubirBackup(){
 }
 
 function startApp(){
+  try{
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('gasto-fecha').value = todayStr();
   document.getElementById('ingreso-fecha').value = todayStr();
@@ -3557,6 +3558,13 @@ function startApp(){
         // Si no hay token aún (primera vez del día), lo hará cuando el usuario toque "backup ahora"
       }, 5000);
     }
+  }
+  } catch(err){
+    console.error('Error en startApp:', err);
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="background:#FEF2F2;border:2px solid #EF4444;color:#991B1B;padding:16px;margin:16px;border-radius:8px;font-family:monospace;z-index:9999;position:relative;">' +
+      '<strong>Error al iniciar la app:</strong><br>' + err.message + '<br><small>' + (err.stack||'').split('\n').slice(0,3).join('<br>') + '</small></div>'
+    );
   }
 }
 
