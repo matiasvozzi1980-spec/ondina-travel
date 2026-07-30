@@ -2526,6 +2526,14 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     )) return;
   }
 
+  // Mejora 5: validación de fecha de vencimiento coherente
+  if(vencimiento && vencimiento < fecha){
+    if(!confirm(
+      `⚠️ La fecha de vencimiento (${vencimiento}) es anterior a la fecha del file (${fecha}).\n\n` +
+      `¿Querés guardar el file de todas formas?`
+    )) return;
+  }
+
   // Detección de cliente duplicado (solo en creación, no en edición)
   if(!editingFileId){
     let clienteDuplicado = null;
