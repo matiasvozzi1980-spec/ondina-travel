@@ -66,6 +66,13 @@
   table th, table td{ white-space:nowrap; }
   .chart-wrap{ position:relative; height:260px; }
 
+  /* Sortable table columns */
+  .th-sort{ cursor:pointer; user-select:none; white-space:nowrap; }
+  .th-sort:hover{ opacity:1 !important; background:rgba(0,0,0,0.04); }
+  .th-sort::after{ content:' ⇅'; opacity:0.3; font-size:0.75em; }
+  .th-sort.sort-asc::after{ content:' ▲'; opacity:1; }
+  .th-sort.sort-desc::after{ content:' ▼'; opacity:1; }
+
   /* Selected row in listado */
   .row-selected{ background:#1F2937 !important; color:#fff; }
   .row-selected td{ color:#fff !important; }
@@ -397,20 +404,20 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Nº</th>
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Cliente</th>
-            <th class="py-2 px-3">Destino</th>
-            <th class="py-2 px-3">Mayorista</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="fileNo">Nº</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="fecha">Fecha</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="cliente">Cliente</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="destino">Destino</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="mayorista">Mayorista</th>
             <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right">Costo neto</th>
-            <th class="py-2 px-3 text-right">Precio venta</th>
-            <th class="py-2 px-3 text-right">Comisión</th>
-            <th class="py-2 px-3 text-right">Saldo cliente</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="costoNeto">Costo neto</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="precioVenta">Precio venta</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="comision">Comisión</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="saldoCliente">Saldo cliente</th>
             <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right">Saldo mayorista</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="saldoMayorista">Saldo mayorista</th>
             <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3">Vencimiento</th>
+            <th class="py-2 px-3 th-sort" data-table="files" data-col="vencimiento">Vencimiento</th>
           </tr>
         </thead>
         <tbody id="files-tbody"></tbody>
@@ -484,33 +491,34 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Nº</th>
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Cliente</th>
-            <th class="py-2 px-3">Destino</th>
-            <th class="py-2 px-3">Mayorista</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="fileNo">Nº</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="fecha">Fecha</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="cliente">Cliente</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="destino">Destino</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="mayorista">Mayorista</th>
             <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right">Costo neto</th>
-            <th class="py-2 px-3 text-right">Precio venta</th>
-            <th class="py-2 px-3 text-right">Comisión</th>
-            <th class="py-2 px-3 text-right">Saldo cliente</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="costoNeto">Costo neto</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="precioVenta">Precio venta</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="comision">Comisión</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="saldoCliente">Saldo cliente</th>
             <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right">Saldo mayorista</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="saldoMayorista">Saldo mayorista</th>
             <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3">Vencimiento</th>
+            <th class="py-2 px-3 th-sort" data-table="listado" data-col="vencimiento">Vencimiento</th>
           </tr>
         </thead>
         <tbody id="listado-tbody"></tbody>
       </table>
-    </div>
-  </section>
-
-  <!-- ============ CLIENTES ============ -->
-  <section id="tab-clientes" class="tab-section hidden">
-    <h2 class="font-display text-2xl mb-4">Base de clientes</h2>
-    <p class="text-sm opacity-70 mb-3">Esta base se completa automáticamente cada vez que creás un file nuevo. El nombre es obligatorio; apellido, DNI, fecha de nacimiento y teléfono son opcionales.</p>
-    <div class="mb-3 max-w-sm">
-      <label class="label">Buscar</label>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3 th-sort" data-table="clientes" data-col="nombre">Nombre</th>
+            <th class="py-2 px-3 th-sort" data-table="clientes" data-col="apellido">Apellido</th>
+            <th class="py-2 px-3 th-sort" data-table="clientes" data-col="dni">DNI</th>
+            <th class="py-2 px-3 th-sort" data-table="clientes" data-col="nacimiento">F. nacimiento</th>
+            <th class="py-2 px-3">Teléfono</th>
+            <th class="py-2 px-3 text-center th-sort" data-table="clientes" data-col="nfiles">Nº de files</th>
+            <th class="py-2 px-3 text-right th-sort" data-table="clientes" data-col="saldo">Saldo pendiente</th>
+            <th class="py-2 px-3"></th>
+          </tr>
       <input type="text" id="clientes-buscar" oninput="renderClientes()" placeholder="Nombre, apellido o DNI..." class="input">
     </div>
     <div class="overflow-x-auto bg-white rounded-xl border border-line">
@@ -572,14 +580,14 @@
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-              <th class="py-2 px-3">Nº File</th>
-              <th class="py-2 px-3">Cliente</th>
-              <th class="py-2 px-3">Destino</th>
-              <th class="py-2 px-3">Vencimiento</th>
-              <th class="py-2 px-3 text-right">Total venta</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-clientes" data-col="fileNo">Nº File</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-clientes" data-col="cliente">Cliente</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-clientes" data-col="destino">Destino</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-clientes" data-col="vencimiento">Vencimiento</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-clientes" data-col="precioVenta">Total venta</th>
               <th class="py-2 px-3 text-right">Cobrado</th>
-              <th class="py-2 px-3 text-right">Saldo pendiente</th>
-              <th class="py-2 px-3 text-right">% cobrado</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-clientes" data-col="saldoCliente">Saldo pendiente</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-clientes" data-col="pct">% cobrado</th>
               <th class="py-2 px-3">Estado</th>
             </tr>
           </thead>
@@ -598,15 +606,15 @@
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-              <th class="py-2 px-3">Nº File</th>
-              <th class="py-2 px-3">Mayorista</th>
-              <th class="py-2 px-3">Cliente</th>
-              <th class="py-2 px-3">Destino</th>
-              <th class="py-2 px-3">Vencimiento</th>
-              <th class="py-2 px-3 text-right">Costo neto</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-mayoristas" data-col="fileNo">Nº File</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-mayoristas" data-col="mayorista">Mayorista</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-mayoristas" data-col="cliente">Cliente</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-mayoristas" data-col="destino">Destino</th>
+              <th class="py-2 px-3 th-sort" data-table="cc-mayoristas" data-col="vencimiento">Vencimiento</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-mayoristas" data-col="costoNeto">Costo neto</th>
               <th class="py-2 px-3 text-right">Pagado</th>
-              <th class="py-2 px-3 text-right">Saldo pendiente</th>
-              <th class="py-2 px-3 text-right">% pagado</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-mayoristas" data-col="saldoMayorista">Saldo pendiente</th>
+              <th class="py-2 px-3 text-right th-sort" data-table="cc-mayoristas" data-col="pct">% pagado</th>
               <th class="py-2 px-3">Estado</th>
             </tr>
           </thead>
@@ -1288,6 +1296,107 @@ let selectedListadoId = null;
 let dashCurrency = 'USD';
 let dashPeriod = 'todo';
 
+/* ====================================================================
+   ORDENAMIENTO DE TABLAS — persistido en localStorage
+==================================================================== */
+const SORT_KEY = 'ondina_sort_state';
+const SORT_DEFAULTS = {
+  files:         { col: 'fileNo', dir: 'asc' },
+  listado:       { col: 'fileNo', dir: 'asc' },
+  clientes:      { col: 'nombre', dir: 'asc' },
+  'cc-clientes': { col: 'saldoCliente', dir: 'desc' },
+  'cc-mayoristas':{ col: 'saldoMayorista', dir: 'desc' }
+};
+
+function loadSortState(){
+  try{ return JSON.parse(storageGet(SORT_KEY) || 'null') || JSON.parse(JSON.stringify(SORT_DEFAULTS)); }
+  catch(e){ return JSON.parse(JSON.stringify(SORT_DEFAULTS)); }
+}
+function saveSortState(s){
+  storageSet(SORT_KEY, JSON.stringify(s));
+}
+
+let sortState = SORT_DEFAULTS; // se sobreescribe en startApp después de cargar storage
+
+function sortRows(rows, table){
+  const s = sortState[table];
+  if(!s) return rows;
+  const { col, dir } = s;
+  const mult = dir === 'asc' ? 1 : -1;
+
+  return [...rows].sort((a, b) => {
+    let va, vb;
+    // Obtener valor según la columna
+    if(col === 'fileNo')          { return sortFileNo(a.fileNo, b.fileNo) * mult; }
+    if(col === 'fecha')           { va = a.fecha || ''; vb = b.fecha || ''; }
+    else if(col === 'cliente')    { va = clienteNombreCompleto(a).toLowerCase(); vb = clienteNombreCompleto(b).toLowerCase(); }
+    else if(col === 'destino')    { va = (a.destino || '').toLowerCase(); vb = (b.destino || '').toLowerCase(); }
+    else if(col === 'mayorista')  { va = (a.mayorista || '').toLowerCase(); vb = (b.mayorista || '').toLowerCase(); }
+    else if(col === 'vencimiento'){ va = a.vencimiento || 'zzz'; vb = b.vencimiento || 'zzz'; }
+    else if(col === 'costoNeto')  { va = a.costoNeto || 0; vb = b.costoNeto || 0; }
+    else if(col === 'precioVenta'){ va = a.precioVenta || 0; vb = b.precioVenta || 0; }
+    else if(col === 'comision')   { va = a.comision || 0; vb = b.comision || 0; }
+    else if(col === 'saldoCliente'){ va = a.saldoCliente || 0; vb = b.saldoCliente || 0; }
+    else if(col === 'saldoMayorista'){ va = a.saldoMayorista || 0; vb = b.saldoMayorista || 0; }
+    else if(col === 'pct'){
+      // Para cc-clientes y cc-mayoristas: porcentaje cobrado/pagado
+      if(table === 'cc-clientes'){
+        va = a.precioVenta > 0 ? (a.precioVenta - a.saldoCliente) / a.precioVenta : 0;
+        vb = b.precioVenta > 0 ? (b.precioVenta - b.saldoCliente) / b.precioVenta : 0;
+      } else {
+        va = a.costoNeto > 0 ? (a.costoNeto - Math.max(a.saldoMayorista,0)) / a.costoNeto : 0;
+        vb = b.costoNeto > 0 ? (b.costoNeto - Math.max(b.saldoMayorista,0)) / b.costoNeto : 0;
+      }
+    }
+    // Clientes
+    else if(col === 'nombre')     { va = (a.nombre || '').toLowerCase(); vb = (b.nombre || '').toLowerCase(); }
+    else if(col === 'apellido')   { va = (a.apellido || '').toLowerCase(); vb = (b.apellido || '').toLowerCase(); }
+    else if(col === 'dni')        { va = a.dni || ''; vb = b.dni || ''; }
+    else if(col === 'nacimiento') { va = a.nacimiento || ''; vb = b.nacimiento || ''; }
+    else if(col === 'nfiles')     { va = 0; vb = 0; } // handled specially
+    else if(col === 'saldo')      { va = 0; vb = 0; } // handled specially
+    else { va = ''; vb = ''; }
+
+    if(typeof va === 'number') return (va - vb) * mult;
+    return va < vb ? -mult : va > vb ? mult : 0;
+  });
+}
+
+function onSortClick(e){
+  const th = e.currentTarget;
+  const table = th.dataset.table;
+  const col = th.dataset.col;
+  const current = sortState[table];
+  const newDir = (current.col === col && current.dir === 'asc') ? 'desc' : 'asc';
+  sortState[table] = { col, dir: newDir };
+  saveSortState(sortState);
+  updateSortIndicators(table);
+  // Re-render the affected table
+  if(table === 'files') renderFilesTable();
+  else if(table === 'listado') renderListado();
+  else if(table === 'clientes') renderClientes();
+  else if(table === 'cc-clientes' || table === 'cc-mayoristas') renderCuentas();
+}
+
+function updateSortIndicators(table){
+  document.querySelectorAll('.th-sort[data-table="' + table + '"]').forEach(function(th){
+    th.classList.remove('sort-asc','sort-desc');
+    const s = sortState[table];
+    if(s && th.dataset.col === s.col){
+      th.classList.add(s.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
+
+function initSortHandlers(){
+  document.querySelectorAll('.th-sort').forEach(function(th){
+    th.addEventListener('click', onSortClick);
+  });
+  // Apply initial indicators
+  Object.keys(sortState).forEach(updateSortIndicators);
+}
+
+
 function periodRange(){
   const hoy = todayStr();
   const [y, m] = hoy.split('-').map(Number);
@@ -1673,6 +1782,7 @@ function renderFilesTable(){
   if(filtro === 'mayorista-pendiente') rows = rows.filter(f=>f.saldoMayorista > 0);
   if(filtro === 'sin-deuda') rows = rows.filter(f=>f.saldoCliente <= 0 && f.saldoMayorista <= 0);
   if(filtro === 'vencidos') rows = rows.filter(f=>{ const i = vencimientoInfo(f); return i && i.estado === 'vencido'; });
+  rows = sortRows(rows, 'files');
 
   if(rows.length === 0){
     tbody.innerHTML = `<tr><td colspan="${FILE_TABLE_COLS}" class="text-center py-6 text-sm opacity-50">No hay files que coincidan con este filtro.</td></tr>`;
@@ -1738,6 +1848,7 @@ function renderListado(){
   if(hasta) rows = rows.filter(f=>f.fecha <= hasta);
 
   rows.sort((a,b)=> sortFileNo(a.fileNo, b.fileNo));
+  rows = sortRows(rows, 'listado');
 
   const tbody = document.getElementById('listado-tbody');
   if(rows.length === 0){
@@ -1773,7 +1884,26 @@ function renderClientes(){
       (c.dni||'').includes(texto)
     );
   }
-  rows.sort((a,b)=> a.nombre.localeCompare(b.nombre, 'es'));
+
+  // Enriquecer con datos calculados para poder ordenar por ellos
+  rows = rows.map(c => {
+    const files = state.files.filter(f=>f.clienteId === c.id);
+    const pendUSD = files.filter(f=>f.moneda==='USD').reduce((s,f)=>s+Math.max(f.saldoCliente,0), 0);
+    const pendARS = files.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+Math.max(f.saldoCliente,0), 0);
+    return Object.assign({}, c, { _nfiles: files.length, _pendUSD: pendUSD, _pendARS: pendARS, _files: files });
+  });
+
+  // Ordenar — nfiles y saldo usan campos calculados
+  const s = sortState['clientes'];
+  if(s && s.col === 'nfiles'){
+    const mult = s.dir === 'asc' ? 1 : -1;
+    rows.sort((a,b)=>(a._nfiles - b._nfiles) * mult);
+  } else if(s && s.col === 'saldo'){
+    const mult = s.dir === 'asc' ? 1 : -1;
+    rows.sort((a,b)=>((a._pendUSD + a._pendARS) - (b._pendUSD + b._pendARS)) * mult);
+  } else {
+    rows = sortRows(rows, 'clientes');
+  }
 
   const tbody = document.getElementById('clientes-tbody');
   if(rows.length === 0){
@@ -1781,9 +1911,7 @@ function renderClientes(){
     return;
   }
   tbody.innerHTML = rows.map(c=>{
-    const files = state.files.filter(f=>f.clienteId === c.id);
-    const pendUSD = files.filter(f=>f.moneda==='USD').reduce((s,f)=>s+f.saldoCliente, 0);
-    const pendARS = files.filter(f=>f.moneda==='ARS').reduce((s,f)=>s+f.saldoCliente, 0);
+    const pendUSD = c._pendUSD, pendARS = c._pendARS;
     const partesPend = [];
     if(pendUSD !== 0) partesPend.push(fmt(pendUSD,'USD'));
     if(pendARS !== 0) partesPend.push(fmt(pendARS,'ARS'));
@@ -1795,7 +1923,7 @@ function renderClientes(){
         <td class="py-2 px-3 font-mono-num">${esc(c.dni || '—')}</td>
         <td class="py-2 px-3">${esc(c.nacimiento || '—')}</td>
         <td class="py-2 px-3">${esc(c.telefono || '—')}</td>
-        <td class="py-2 px-3 font-mono-num text-center">${files.length}</td>
+        <td class="py-2 px-3 font-mono-num text-center">${c._nfiles}</td>
         <td class="py-2 px-3 font-mono-num text-right" style="color:${(pendUSD>0||pendARS>0)?'var(--terracotta)':'inherit'}">${pendTxt}</td>
         <td class="py-2 px-3 text-right"><button onclick="openEditClienteModal(${c.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button></td>
       </tr>`;
@@ -2045,6 +2173,7 @@ function renderCuentas(){
     ? files.filter(f=>f.saldoCliente > 0)
     : files;
   clienteFiles = clienteFiles.sort((a,b)=> b.saldoCliente - a.saldoCliente);
+  clienteFiles = sortRows(clienteFiles, 'cc-clientes');
   const tbodyC = document.getElementById('cc-clientes-tbody');
   if(clienteFiles.length === 0){
     tbodyC.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-sm opacity-50">No hay saldos pendientes de clientes.</td></tr>`;
@@ -2086,6 +2215,7 @@ function renderCuentas(){
     ? files.filter(f=>f.saldoMayorista !== 0)
     : files;
   mayoristaFiles = mayoristaFiles.sort((a,b)=> b.saldoMayorista - a.saldoMayorista);
+  mayoristaFiles = sortRows(mayoristaFiles, 'cc-mayoristas');
   const tbodyM = document.getElementById('cc-mayoristas-tbody');
   if(mayoristaFiles.length === 0){
     tbodyM.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-sm opacity-50">No hay saldos pendientes con mayoristas.</td></tr>`;
@@ -3408,8 +3538,10 @@ function startApp(){
   document.getElementById('pasaje-fecha').value = todayStr();
 
   load();
+  sortState = loadSortState();
   buildAjusteCajas();
   renderAll();
+  initSortHandlers();
   if(!storageOK){
     document.getElementById('storage-warning').classList.remove('hidden');
   }
