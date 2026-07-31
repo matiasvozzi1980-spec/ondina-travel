@@ -827,6 +827,10 @@
           </select>
         </div>
         <div class="col-span-2">
+          <label class="label">Categoría</label>
+          <select id="gasto-categoria" class="input"></select>
+        </div>
+        <div class="col-span-2">
           <label class="label">Caja de la que sale</label>
           <select id="gasto-caja" class="input">
             <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
@@ -989,6 +993,22 @@
       </table>
     </div>
     <p class="text-xs opacity-50 mt-2">Usa la moneda seleccionada arriba. Solo incluye files con saldo pendiente del cliente.</p>
+
+    <h2 class="font-display text-xl mb-3 mt-8 opacity-80">Gastos operativos por categoría</h2>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Categoría</th>
+            <th class="py-2 px-3 text-center">Gastos</th>
+            <th class="py-2 px-3 text-right">Total</th>
+            <th class="py-2 px-3 text-right">% del total</th>
+          </tr>
+        </thead>
+        <tbody id="gastos-categoria-tbody"></tbody>
+      </table>
+    </div>
+    <p class="text-xs opacity-50 mt-2">Usa el año y la moneda seleccionados arriba. Solo incluye movimientos de "Gasto vario".</p>
   </section>
 
   <section id="tab-config" class="tab-section hidden">
@@ -1091,6 +1111,16 @@ service cloud.firestore {
         <h3 class="font-display text-lg mb-2">Ajustar saldo de cajas</h3>
         <p class="text-sm opacity-70 mb-3">Ingresá el saldo correcto de cada caja, por moneda, para cargar el saldo inicial o corregir diferencias. Se registrará un ajuste en el historial.</p>
         <div class="space-y-3" id="ajuste-cajas"></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-line p-4 mb-6">
+      <h3 class="font-display text-lg mb-2">Categorías de gastos operativos</h3>
+      <p class="text-sm opacity-70 mb-3">Se usan en "Gasto vario" (Caja) y en el reporte de gastos por categoría. Renombrar o eliminar una categoría no cambia los gastos ya registrados con ese nombre.</p>
+      <div id="gasto-categorias-list" class="space-y-2 mb-3"></div>
+      <div class="flex gap-2">
+        <input type="text" id="nueva-gasto-categoria" class="input" placeholder="Nueva categoría...">
+        <button onclick="agregarGastoCategoria()" class="btn-ghost shrink-0">Agregar</button>
       </div>
     </div>
 
@@ -1520,7 +1550,8 @@ const STORAGE_KEY = 'bitacora_viajes_v2';
 const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
 
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
+const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
 let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
@@ -1551,6 +1582,36 @@ function saveSortState(s){
 }
 
 let sortState = SORT_DEFAULTS; // se sobreescribe en startApp después de cargar storage
+
+/* ====================================================================
+   FILTROS PERSISTENTES ENTRE PESTAÑAS (Mejora 17)
+==================================================================== */
+const FILTROS_KEY = 'ondina_filtros_state';
+const FILTER_FIELDS = {
+  files: ['filter-files-estado'],
+  listado: ['listado-buscar','listado-mayorista','listado-moneda','listado-estado-cliente','listado-estado-mayorista','listado-vencimiento','listado-desde','listado-hasta'],
+  caja: ['filter-caja','filter-tipo','filter-moneda'],
+  clientes: ['clientes-buscar']
+};
+function persistFiltrosState(){
+  const data = {};
+  Object.keys(FILTER_FIELDS).forEach(function(scope){
+    FILTER_FIELDS[scope].forEach(function(id){
+      const el = document.getElementById(id);
+      if(el) data[id] = el.value;
+    });
+  });
+  storageSet(FILTROS_KEY, JSON.stringify(data));
+}
+function applyFiltrosState(){
+  let data;
+  try{ data = JSON.parse(storageGet(FILTROS_KEY) || '{}'); }
+  catch(e){ data = {}; }
+  Object.keys(data).forEach(function(id){
+    const el = document.getElementById(id);
+    if(el) el.value = data[id];
+  });
+}
 
 function sortRows(rows, table){
   const s = sortState[table];
@@ -1718,6 +1779,7 @@ function load(){
       state.clientes = data.clientes || [];
       state.nextFileNo = data.nextFileNo || 1;
       state.presupuestos = data.presupuestos || [];
+      state.gastoCategorias = (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     return;
   }
@@ -2010,6 +2072,7 @@ function renderReportes(){
   </tr>`;
 
   renderAgingReport();
+  renderGastosPorCategoria();
 }
 
 /* ====================================================================
@@ -2061,6 +2124,56 @@ function renderAgingReport(){
       <td class="py-2 px-3 text-right font-mono-num">${fmt(f.saldoCliente, reportesMoneda)}</td>
     </tr>
   `).join('') || `<tr><td colspan="7" class="py-4 px-3 text-center opacity-50">Sin saldos pendientes en ${reportesMoneda}.</td></tr>`;
+}
+
+/* ====================================================================
+   RENDER: GASTOS OPERATIVOS POR CATEGORÍA (Mejora 15)
+==================================================================== */
+function renderGastosPorCategoria(){
+  const tbody = document.getElementById('gastos-categoria-tbody');
+  if(!tbody) return;
+
+  const yearSel = document.getElementById('reportes-anio');
+  const anio = yearSel ? yearSel.value : String(new Date().getFullYear());
+
+  const gastos = state.movs.filter(m =>
+    m.categoria === 'gasto' && m.moneda === reportesMoneda && (m.fecha || '').slice(0,4) === anio
+  );
+
+  const porCategoria = {};
+  let totalGeneral = 0;
+  gastos.forEach(m => {
+    const cat = m.categoriaGasto || 'Otros';
+    if(!porCategoria[cat]) porCategoria[cat] = { count: 0, total: 0 };
+    porCategoria[cat].count++;
+    porCategoria[cat].total += m.monto;
+    totalGeneral += m.monto;
+  });
+
+  const filas = Object.keys(porCategoria)
+    .map(cat => ({ cat, ...porCategoria[cat] }))
+    .sort((a,b) => b.total - a.total);
+
+  if(filas.length === 0){
+    tbody.innerHTML = `<tr><td colspan="4" class="py-4 px-3 text-center opacity-50">Sin gastos registrados en ${anio} (${reportesMoneda}).</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filas.map(r => `
+    <tr class="border-b border-line last-border-0">
+      <td class="py-2 px-3">${esc(r.cat)}</td>
+      <td class="py-2 px-3 text-center">${r.count}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(r.total, reportesMoneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${totalGeneral > 0 ? ((r.total / totalGeneral) * 100).toFixed(1) : '0.0'}%</td>
+    </tr>
+  `).join('') + `
+    <tr class="font-semibold bg-paper" style="border-top:2px solid var(--line)">
+      <td class="py-2 px-3">Total</td>
+      <td class="py-2 px-3 text-center">${gastos.length}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(totalGeneral, reportesMoneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">100.0%</td>
+    </tr>
+  `;
 }
 
 /* ====================================================================
@@ -2116,6 +2229,63 @@ function renderAlertas(){
       </div>
     </div>`;
   }).join('');
+}
+
+/* ====================================================================
+   CATEGORÍAS DE GASTOS OPERATIVOS (Mejora 15)
+==================================================================== */
+function renderGastoCategoriaSelect(){
+  const sel = document.getElementById('gasto-categoria');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = state.gastoCategorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(state.gastoCategorias.includes(prev)) sel.value = prev;
+}
+function renderGastoCategoriasConfig(){
+  const wrap = document.getElementById('gasto-categorias-list');
+  if(!wrap) return;
+  wrap.innerHTML = state.gastoCategorias.map((c, i) => `
+    <div class="flex items-center justify-between gap-2 border border-line rounded-lg px-3 py-2">
+      <span class="text-sm">${esc(c)}</span>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="renombrarGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100">Renombrar</button>
+        <button onclick="eliminarGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+}
+function agregarGastoCategoria(){
+  const input = document.getElementById('nueva-gasto-categoria');
+  const nombre = input.value.trim();
+  if(!nombre){ toast('Ingresá un nombre para la categoría.', 'error'); return; }
+  if(state.gastoCategorias.some(c => c.toLowerCase() === nombre.toLowerCase())){
+    toast('Ya existe una categoría con ese nombre.', 'error');
+    return;
+  }
+  state.gastoCategorias.push(nombre);
+  input.value = '';
+  renderGastoCategoriasConfig();
+  renderGastoCategoriaSelect();
+  save();
+}
+function renombrarGastoCategoria(index){
+  const actual = state.gastoCategorias[index];
+  if(actual === undefined) return;
+  const nuevo = prompt('Nuevo nombre para la categoría:', actual);
+  if(!nuevo || !nuevo.trim() || nuevo.trim() === actual) return;
+  state.gastoCategorias[index] = nuevo.trim();
+  renderGastoCategoriasConfig();
+  renderGastoCategoriaSelect();
+  save();
+}
+function eliminarGastoCategoria(index){
+  const actual = state.gastoCategorias[index];
+  if(actual === undefined) return;
+  if(!confirm(`¿Eliminar la categoría "${actual}"? Los gastos ya registrados con esta categoría no se modifican.`)) return;
+  state.gastoCategorias.splice(index, 1);
+  renderGastoCategoriasConfig();
+  renderGastoCategoriaSelect();
+  save();
 }
 
 /* ====================================================================
@@ -2191,6 +2361,7 @@ function fileRowHtml(f, context){
    RENDER: FILES
 ==================================================================== */
 function renderFilesTable(){
+  persistFiltrosState();
   const tbody = document.getElementById('files-tbody');
   if(state.files.length === 0){
     tbody.innerHTML = `<tr><td colspan="${FILE_TABLE_COLS}" class="text-center py-6 text-sm opacity-50">Todavía no registraste ningún file. Tocá "+ Nuevo file" para empezar.</td></tr>`;
@@ -2234,6 +2405,7 @@ function resetListadoFiltros(){
 }
 function renderListado(){
   buildMayoristaOptions();
+  persistFiltrosState();
   const texto = document.getElementById('listado-buscar').value.trim().toLowerCase();
   const mayorista = document.getElementById('listado-mayorista').value;
   const moneda = document.getElementById('listado-moneda').value;
@@ -2295,6 +2467,7 @@ function selectListadoRow(id){
    RENDER: CLIENTES
 ==================================================================== */
 function renderClientes(){
+  persistFiltrosState();
   const texto = document.getElementById('clientes-buscar').value.trim().toLowerCase();
   let rows = [...state.clientes];
   if(texto){
@@ -2345,6 +2518,7 @@ function renderClientes(){
    RENDER: HISTORIAL UNIFICADO
 ==================================================================== */
 function renderHistorial(){
+  persistFiltrosState();
   const filterCaja = document.getElementById('filter-caja').value;
   const filterTipo = document.getElementById('filter-tipo').value;
   const filterMoneda = document.getElementById('filter-moneda').value;
@@ -2362,12 +2536,13 @@ function renderHistorial(){
     <tr class="border-b border-line">
       <td class="py-2 px-3">${esc(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
-      <td class="py-2 px-3">${esc(m.concepto)}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
+      <td class="py-2 px-3">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#FEF3C7; color:#92400E">${esc(m.categoriaGasto)}</span>` : ''}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
+        <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
         <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
         <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
       </td>
@@ -2445,6 +2620,69 @@ function waEnviarNumero(numero){
     setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero + '&text=' + waText, '_blank'); }, 2000);
   } else {
     window.open('https://wa.me/' + numero + '?text=' + waText, '_blank');
+  }
+}
+
+/* ====================================================================
+   COMPROBANTE DESCARGABLE POR MOVIMIENTO (Mejora 22)
+==================================================================== */
+async function generarComprobante(movId){
+  const m = state.movs.find(x=>x.id===movId);
+  if(!m) return;
+  if(typeof html2canvas === 'undefined'){
+    toast('No se pudo cargar el generador de imágenes. Revisá tu conexión e intentá de nuevo.', 'error');
+    return;
+  }
+  const f = m.fileId ? state.files.find(x=>x.id===m.fileId) : null;
+  const ahora = new Date();
+  const emitido = ahora.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+
+  const filas = [];
+  filas.push(['Fecha del movimiento', esc(m.fecha)]);
+  if(f) filas.push(['File', '#' + esc(f.fileNo)]);
+  if(f) filas.push(['Cliente', esc(clienteNombreCompleto(f))]);
+  filas.push(['Concepto', esc(m.concepto)]);
+  if(m.categoriaGasto) filas.push(['Categoría', esc(m.categoriaGasto)]);
+  filas.push(['Caja', m.caja ? esc(CAJA_LABELS[m.caja] || m.caja) : 'Sin caja (saldo a favor)']);
+  filas.push(['Tipo', m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso']);
+  if(m.tipoCambio) filas.push(['Tipo de cambio', String(m.tipoCambio)]);
+
+  const filasHtml = filas.map(function(r){
+    return '<tr><td style="padding:8px 0;color:#6B7280;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;width:40%;vertical-align:top;">' + r[0] + '</td>' +
+      '<td style="padding:8px 0;font-size:14px;">' + r[1] + '</td></tr>';
+  }).join('');
+
+  const montoColor = m.tipo === 'ingreso' ? '#15803D' : '#B91C1C';
+  const montoTexto = (m.tipo === 'ingreso' ? '+ ' : '- ') + fmt(m.monto, m.moneda);
+
+  const contenedor = document.createElement('div');
+  contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:36px 40px;font-family:Inter,sans-serif;width:520px;color:#161616;';
+  contenedor.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #161616;padding-bottom:16px;margin-bottom:20px;">' +
+      '<div><div style="font-family:Georgia,serif;font-size:22px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">Ondina Travel</div>' +
+      '<div style="font-size:11px;color:#6B7280;letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;">Comprobante de movimiento</div></div>' +
+      '<div style="text-align:right;"><div style="font-size:12px;color:#6B7280;">Comprobante Nº</div><div style="font-family:\'IBM Plex Mono\',monospace;font-size:16px;font-weight:600;">' + m.id + '</div></div>' +
+    '</div>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">' + filasHtml + '</table>' +
+    '<div style="border-top:1px solid #E5E5E5;padding-top:16px;display:flex;justify-content:space-between;align-items:center;">' +
+      '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Monto</span>' +
+      '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:22px;font-weight:700;color:' + montoColor + ';">' + montoTexto + '</span>' +
+    '</div>' +
+    '<p style="font-size:10px;color:#9CA3AF;margin-top:24px;text-align:center;">Emitido el ' + emitido + ' · Comprobante generado automáticamente por Ondina Travel</p>';
+
+  document.body.appendChild(contenedor);
+  try{
+    const canvas = await html2canvas(contenedor, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false });
+    document.body.removeChild(contenedor);
+    const link = document.createElement('a');
+    link.download = 'comprobante-' + m.id + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast('Comprobante descargado.', 'success');
+  }catch(err){
+    document.body.removeChild(contenedor);
+    console.error(err);
+    toast('No se pudo generar el comprobante: ' + err.message, 'error');
   }
 }
 
@@ -3430,6 +3668,7 @@ function renderFileHistory(fileId){
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
+        <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
         <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
         <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
       </td>
@@ -3569,6 +3808,7 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   const monto = parseFloat(document.getElementById('gasto-monto').value);
   const moneda = document.getElementById('gasto-moneda').value;
   const caja = document.getElementById('gasto-caja').value;
+  const categoriaGasto = document.getElementById('gasto-categoria').value || 'Otros';
 
   if(!fecha || !concepto || !monto || monto <= 0){
     toast('Completá fecha, concepto y un monto válido.', 'error');
@@ -3592,11 +3832,12 @@ document.getElementById('form-gasto').addEventListener('submit', function(e){
   state.movs.push({
     id: Date.now(),
     fecha, fileId: null, fileNo: null,
-    concepto, monto, moneda, tipo: 'egreso', caja, categoria: 'gasto'
+    concepto, monto, moneda, tipo: 'egreso', caja, categoria: 'gasto', categoriaGasto
   });
 
   document.getElementById('form-gasto').reset();
   document.getElementById('gasto-fecha').value = todayStr();
+  renderGastoCategoriaSelect();
   save();
 });
 
@@ -3863,6 +4104,7 @@ function importData(evt){
       state.movs = data.movs;
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
       state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
+      state.gastoCategorias = (Array.isArray(data.gastoCategorias) && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
       const maxNo = state.files.reduce((max,f)=>{
         const n = parseInt(f.fileNo, 10);
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
@@ -3880,7 +4122,7 @@ function importData(evt){
 function resetAll(){
   if(!confirm('¿Seguro que querés borrar TODOS los datos (files, clientes, movimientos y saldos)? Esta acción no se puede deshacer.')) return;
   if(!confirm('Última confirmación: se perderá toda la información guardada localmente. ¿Continuar?')) return;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
   save();
 }
 
@@ -4179,7 +4421,11 @@ function startApp(){
   load();
   sortState = loadSortState();
   buildAjusteCajas();
-  renderAll();
+  renderGastoCategoriaSelect();
+  renderGastoCategoriasConfig();
+  renderAll(); // primer render: construye opciones dinámicas (ej. mayoristas del listado)
+  applyFiltrosState();
+  renderAll(); // segundo render: ya con los filtros guardados aplicados
   initSortHandlers();
   if(!storageOK){
     document.getElementById('storage-warning').classList.remove('hidden');
