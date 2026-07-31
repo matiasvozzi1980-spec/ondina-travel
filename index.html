@@ -288,6 +288,7 @@
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
+  <button class="tab-btn" data-tab="reportes" onclick="switchTab('reportes')">Reportes</button>
   <button class="tab-btn" data-tab="config" onclick="switchTab('config')">Configuración</button>
 </nav>
 
@@ -869,6 +870,82 @@
   </section>
 
   <!-- ============ CONFIGURACIÓN ============ -->
+  <!-- ============ REPORTES (Mejora 8) ============ -->
+  <section id="tab-reportes" class="tab-section hidden">
+    <div class="bg-white rounded-xl border border-line p-4 mb-4 flex flex-wrap gap-4 items-center">
+      <div>
+        <p class="text-xs uppercase tracking-widest opacity-50 mb-1">Año</p>
+        <select id="reportes-anio" onchange="renderReportes()" class="input"></select>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-widest opacity-50 mb-1">Moneda</p>
+        <div class="flex border border-line rounded-lg overflow-hidden">
+          <button class="toggle-btn active" data-reportes-moneda="USD" onclick="setReportesMoneda('USD')">USD</button>
+          <button class="toggle-btn" data-reportes-moneda="ARS" onclick="setReportesMoneda('ARS')">ARS</button>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="font-display text-xl mb-3 opacity-80">Ventas y comisiones por mes</h2>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Mes</th>
+            <th class="py-2 px-3 text-center">Files</th>
+            <th class="py-2 px-3 text-right">Ventas</th>
+            <th class="py-2 px-3 text-right">Costos netos</th>
+            <th class="py-2 px-3 text-right">Comisiones</th>
+          </tr>
+        </thead>
+        <tbody id="reportes-tbody"></tbody>
+        <tfoot id="reportes-tfoot"></tfoot>
+      </table>
+    </div>
+    <p class="text-xs opacity-50 mt-2">Se calcula sobre la fecha del file (no sobre cobros/pagos parciales). Los files sin fecha no se cuentan.</p>
+
+    <h2 class="font-display text-xl mb-3 mt-8 opacity-80">Cuentas por cobrar por antigüedad</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">0-30 días</p>
+        <p id="aging-0-30-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--green)">$0.00</p>
+        <p id="aging-0-30-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">31-60 días</p>
+        <p id="aging-31-60-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--gold)">$0.00</p>
+        <p id="aging-31-60-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">61-90 días</p>
+        <p id="aging-61-90-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--gold)">$0.00</p>
+        <p id="aging-61-90-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">90+ días</p>
+        <p id="aging-90-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--terracotta)">$0.00</p>
+        <p id="aging-90-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+    </div>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Nº</th>
+            <th class="py-2 px-3">Cliente</th>
+            <th class="py-2 px-3">Destino</th>
+            <th class="py-2 px-3">Fecha</th>
+            <th class="py-2 px-3 text-center">Días</th>
+            <th class="py-2 px-3">Antigüedad</th>
+            <th class="py-2 px-3 text-right">Saldo pendiente</th>
+          </tr>
+        </thead>
+        <tbody id="aging-tbody"></tbody>
+      </table>
+    </div>
+    <p class="text-xs opacity-50 mt-2">Usa la moneda seleccionada arriba. Solo incluye files con saldo pendiente del cliente.</p>
+  </section>
+
   <section id="tab-config" class="tab-section hidden">
     <h2 class="font-display text-2xl mb-4">Configuración y respaldo</h2>
 
@@ -1229,58 +1306,72 @@ service cloud.firestore {
       <h3 id="detail-title" class="font-display text-xl"></h3>
       <button onclick="closeDetailModal()" class="text-2xl leading-none">&times;</button>
     </div>
-    <div id="detail-info" class="text-sm grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3 bg-white border border-line rounded-lg p-3"></div>
 
-    <div class="flex flex-wrap items-center gap-2 mb-4 bg-white border border-line rounded-lg p-3">
-      <label class="label mb-0">Fecha límite de vencimiento</label>
-      <input type="date" id="detail-vencimiento" class="input w-auto">
-      <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
-      <span id="detail-venc-badge"></span>
+    <div class="flex border border-line rounded-lg overflow-hidden mb-4">
+      <button class="toggle-btn active" data-detail-tab="resumen" onclick="switchDetailTab('resumen')">Resumen</button>
+      <button class="toggle-btn" data-detail-tab="cobros" onclick="switchDetailTab('cobros')">Cobros y pagos</button>
+      <button class="toggle-btn" data-detail-tab="movimientos" onclick="switchDetailTab('movimientos')">Movimientos</button>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-      <form id="form-cobro" class="border border-line rounded-lg p-3 bg-white">
-        <p class="font-display mb-2">Registrar cobro de cliente</p>
-        <label class="label">Monto (<span id="cobro-moneda-label">USD</span>)</label>
-        <input type="number" step="0.01" min="0" id="cobro-monto" required class="input mb-2">
-        <label class="label">Caja receptora</label>
-        <select id="cobro-caja" class="input mb-2">
-          <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
-        </select>
-        <button type="submit" class="btn-primary w-full">Registrar cobro</button>
-      </form>
-      <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
-        <p class="font-display mb-2">Registrar pago a mayorista</p>
-        <div id="pago-credito-info" class="text-sm mb-2 hidden"></div>
-        <label class="label">Monto (<span id="pago-moneda-label">USD</span>)</label>
-        <input type="number" step="0.01" min="0" id="pago-monto" required class="input mb-2">
-        <label class="label">Caja emisora</label>
-        <select id="pago-caja" class="input mb-2">
-          <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
-        </select>
-        <button type="submit" class="btn-danger w-full">Registrar pago</button>
-        <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
-      </form>
+    <div id="detail-tab-resumen" class="detail-subtab">
+      <div id="detail-info" class="text-sm grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3 bg-white border border-line rounded-lg p-3"></div>
+
+      <div class="flex flex-wrap items-center gap-2 mb-4 bg-white border border-line rounded-lg p-3">
+        <label class="label mb-0">Fecha límite de vencimiento</label>
+        <input type="date" id="detail-vencimiento" class="input w-auto">
+        <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
+        <span id="detail-venc-badge"></span>
+      </div>
+
+      <div class="flex gap-2 flex-wrap">
+        <button id="btn-edit-file" class="btn-ghost">Editar datos del file</button>
+        <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
+      </div>
     </div>
 
-    <h4 class="font-display text-lg mb-2">Movimientos de este file</h4>
-    <div class="overflow-x-auto bg-white border border-line rounded-lg mb-4">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3">Fecha</th>
-            <th class="py-2 px-3">Concepto</th>
-            <th class="py-2 px-3 text-right">Monto</th>
-            <th class="py-2 px-3">Caja</th>
-            <th class="py-2 px-3"></th>
-          </tr>
-        </thead>
-        <tbody id="detail-history-tbody"></tbody>
-      </table>
+    <div id="detail-tab-cobros" class="detail-subtab hidden">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <form id="form-cobro" class="border border-line rounded-lg p-3 bg-white">
+          <p class="font-display mb-2">Registrar cobro de cliente</p>
+          <label class="label">Monto (<span id="cobro-moneda-label">USD</span>)</label>
+          <input type="number" step="0.01" min="0" id="cobro-monto" required class="input mb-2">
+          <label class="label">Caja receptora</label>
+          <select id="cobro-caja" class="input mb-2">
+            <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
+          </select>
+          <button type="submit" class="btn-primary w-full">Registrar cobro</button>
+        </form>
+        <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
+          <p class="font-display mb-2">Registrar pago a mayorista</p>
+          <div id="pago-credito-info" class="text-sm mb-2 hidden"></div>
+          <label class="label">Monto (<span id="pago-moneda-label">USD</span>)</label>
+          <input type="number" step="0.01" min="0" id="pago-monto" required class="input mb-2">
+          <label class="label">Caja emisora</label>
+          <select id="pago-caja" class="input mb-2">
+            <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
+          </select>
+          <button type="submit" class="btn-danger w-full">Registrar pago</button>
+          <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
+        </form>
+      </div>
     </div>
-    <div class="flex gap-2 flex-wrap">
-      <button id="btn-edit-file" class="btn-ghost">Editar datos del file</button>
-      <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
+
+    <div id="detail-tab-movimientos" class="detail-subtab hidden">
+      <h4 class="font-display text-lg mb-2">Movimientos de este file</h4>
+      <div class="overflow-x-auto bg-white border border-line rounded-lg mb-4">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Fecha</th>
+              <th class="py-2 px-3">Concepto</th>
+              <th class="py-2 px-3 text-right">Monto</th>
+              <th class="py-2 px-3">Caja</th>
+              <th class="py-2 px-3"></th>
+            </tr>
+          </thead>
+          <tbody id="detail-history-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -1303,6 +1394,7 @@ let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
 let dashPeriod = 'todo';
+let reportesMoneda = 'USD';
 
 /* ====================================================================
    ORDENAMIENTO DE TABLAS — persistido en localStorage
@@ -1702,6 +1794,9 @@ function switchTab(name){
   if(name === 'cuentas'){
     renderCuentas();
   }
+  if(name === 'reportes'){
+    renderReportes();
+  }
 }
 function setDashCurrency(c){
   dashCurrency = c;
@@ -1712,6 +1807,122 @@ function setDashPeriod(p){
   dashPeriod = p;
   document.querySelectorAll('.toggle-btn[data-period]').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
   renderDashboard();
+}
+
+/* ====================================================================
+   RENDER: REPORTES (Mejora 8) — ventas y comisiones por mes
+==================================================================== */
+function setReportesMoneda(m){
+  reportesMoneda = m;
+  document.querySelectorAll('.toggle-btn[data-reportes-moneda]').forEach(b=>b.classList.toggle('active', b.dataset.reportesMoneda===m));
+  renderReportes();
+}
+const MESES_REPORTE = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function renderReportes(){
+  const yearSel = document.getElementById('reportes-anio');
+  if(!yearSel) return;
+
+  const years = Array.from(new Set(state.files.map(f => (f.fecha||'').slice(0,4)).filter(Boolean)));
+  const currentYear = String(new Date().getFullYear());
+  if(!years.includes(currentYear)) years.push(currentYear);
+  years.sort();
+
+  const prevVal = yearSel.value;
+  yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSel.value = years.includes(prevVal) ? prevVal : years[years.length - 1];
+  const anio = yearSel.value;
+
+  const porMes = MESES_REPORTE.map(() => ({ files: 0, ventas: 0, costos: 0, comisiones: 0 }));
+
+  state.files.forEach(f => {
+    if(!f.fecha || f.moneda !== reportesMoneda) return;
+    if(f.fecha.slice(0,4) !== anio) return;
+    const mIdx = parseInt(f.fecha.slice(5,7), 10) - 1;
+    if(mIdx < 0 || mIdx > 11) return;
+    porMes[mIdx].files++;
+    porMes[mIdx].ventas += f.precioVenta || 0;
+    porMes[mIdx].costos += f.costoNeto || 0;
+    porMes[mIdx].comisiones += f.comision || 0;
+  });
+
+  const tbody = document.getElementById('reportes-tbody');
+  tbody.innerHTML = MESES_REPORTE.map((nombre, i) => {
+    const r = porMes[i];
+    return `<tr class="border-b border-line last-border-0">
+      <td class="py-2 px-3">${nombre}</td>
+      <td class="py-2 px-3 text-center">${r.files}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(r.ventas, reportesMoneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(r.costos, reportesMoneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(r.comisiones, reportesMoneda)}</td>
+    </tr>`;
+  }).join('');
+
+  const totalFiles = porMes.reduce((s,r)=>s+r.files, 0);
+  const totalVentas = porMes.reduce((s,r)=>s+r.ventas, 0);
+  const totalCostos = porMes.reduce((s,r)=>s+r.costos, 0);
+  const totalComisiones = porMes.reduce((s,r)=>s+r.comisiones, 0);
+
+  const tfoot = document.getElementById('reportes-tfoot');
+  tfoot.innerHTML = `<tr class="font-semibold bg-paper" style="border-top:2px solid var(--line)">
+    <td class="py-2 px-3">Total ${anio}</td>
+    <td class="py-2 px-3 text-center">${totalFiles}</td>
+    <td class="py-2 px-3 text-right font-mono-num">${fmt(totalVentas, reportesMoneda)}</td>
+    <td class="py-2 px-3 text-right font-mono-num">${fmt(totalCostos, reportesMoneda)}</td>
+    <td class="py-2 px-3 text-right font-mono-num">${fmt(totalComisiones, reportesMoneda)}</td>
+  </tr>`;
+
+  renderAgingReport();
+}
+
+/* ====================================================================
+   RENDER: CUENTAS POR COBRAR POR ANTIGÜEDAD (Mejora 9)
+==================================================================== */
+function renderAgingReport(){
+  const tbody = document.getElementById('aging-tbody');
+  if(!tbody) return;
+
+  const hoy = new Date(todayStr() + 'T00:00:00');
+  const buckets = {
+    '0-30':  { desde: 0,  hasta: 30,  count: 0, total: 0, label: '0-30 días' },
+    '31-60': { desde: 31, hasta: 60,  count: 0, total: 0, label: '31-60 días' },
+    '61-90': { desde: 61, hasta: 90,  count: 0, total: 0, label: '61-90 días' },
+    '90+':   { desde: 91, hasta: Infinity, count: 0, total: 0, label: '90+ días' }
+  };
+
+  const rows = state.files
+    .filter(f => f.moneda === reportesMoneda && f.saldoCliente > 0 && f.fecha)
+    .map(f => {
+      const fecha = new Date(f.fecha + 'T00:00:00');
+      const dias = Math.max(0, Math.round((hoy - fecha) / 86400000));
+      let key = '0-30';
+      if(dias > 90) key = '90+';
+      else if(dias > 60) key = '61-90';
+      else if(dias > 30) key = '31-60';
+      buckets[key].count++;
+      buckets[key].total += f.saldoCliente;
+      return { f, dias, key };
+    })
+    .sort((a, b) => b.dias - a.dias);
+
+  Object.keys(buckets).forEach(key => {
+    const b = buckets[key];
+    const totalEl = document.getElementById('aging-' + key.replace('+','') + '-total');
+    const countEl = document.getElementById('aging-' + key.replace('+','') + '-count');
+    if(totalEl) totalEl.textContent = fmt(b.total, reportesMoneda);
+    if(countEl) countEl.textContent = b.count + (b.count === 1 ? ' file' : ' files');
+  });
+
+  tbody.innerHTML = rows.map(({ f, dias, key }) => `
+    <tr class="border-b border-line last-border-0 cursor-pointer hover-bg-paper" onclick="switchTab('files'); openDetail(${f.id});">
+      <td class="py-2 px-3">${esc(f.fileNo)}</td>
+      <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
+      <td class="py-2 px-3">${esc(f.destino)}</td>
+      <td class="py-2 px-3">${f.fecha}</td>
+      <td class="py-2 px-3 text-center">${dias}</td>
+      <td class="py-2 px-3">${buckets[key].label}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(f.saldoCliente, reportesMoneda)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="7" class="py-4 px-3 text-center opacity-50">Sin saldos pendientes en ${reportesMoneda}.</td></tr>`;
 }
 
 /* ====================================================================
@@ -2459,6 +2670,7 @@ function renderAll(){
   renderCuentas();
   renderClientes();
   renderHistorial();
+  renderReportes();
 }
 
 /* ====================================================================
@@ -2792,7 +3004,16 @@ function openDetail(id){
   document.getElementById('form-cobro').reset();
   document.getElementById('form-pago').reset();
   renderFileHistory(id);
+  switchDetailTab('resumen');
   document.getElementById('modal-detail').classList.remove('hidden');
+}
+function switchDetailTab(name){
+  document.querySelectorAll('.detail-subtab').forEach(function(s){ s.classList.add('hidden'); });
+  var target = document.getElementById('detail-tab-' + name);
+  if(target) target.classList.remove('hidden');
+  document.querySelectorAll('.toggle-btn[data-detail-tab]').forEach(function(b){
+    b.classList.toggle('active', b.dataset.detailTab === name);
+  });
 }
 function closeDetailModal(){
   document.getElementById('modal-detail').classList.add('hidden');
