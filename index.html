@@ -301,6 +301,7 @@
   <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
   <button class="tab-btn" data-tab="files" onclick="switchTab('files')">Files<span id="files-alert-dot" class="alert-dot hidden"></span></button>
   <button class="tab-btn" data-tab="listado" onclick="switchTab('listado')">Listado de files</button>
+  <button class="tab-btn" data-tab="presupuestos" onclick="switchTab('presupuestos')">Presupuestos</button>
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
@@ -536,6 +537,34 @@
         <tbody id="listado-tbody"></tbody>
       </table>
     </div>
+  </section>
+
+  <!-- ============ PRESUPUESTOS (Mejora 13) ============ -->
+  <section id="tab-presupuestos" class="tab-section hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-display text-2xl">Presupuestos</h2>
+      <button onclick="openPresupuestoModal()" class="btn-primary">+ Nuevo presupuesto</button>
+    </div>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Fecha</th>
+            <th class="py-2 px-3">Cliente</th>
+            <th class="py-2 px-3">Destino</th>
+            <th class="py-2 px-3">Mayorista</th>
+            <th class="py-2 px-3">Moneda</th>
+            <th class="py-2 px-3 text-right">Costo neto</th>
+            <th class="py-2 px-3 text-right">Precio venta</th>
+            <th class="py-2 px-3 text-right">Comisión est.</th>
+            <th class="py-2 px-3">Estado</th>
+            <th class="py-2 px-3"></th>
+          </tr>
+        </thead>
+        <tbody id="presupuestos-tbody"></tbody>
+      </table>
+    </div>
+    <p class="text-xs opacity-50 mt-2">Los presupuestos convertidos quedan marcados como "Convertido" y no afectan cajas ni saldos hasta que se convierten en file.</p>
   </section>
 
   <!-- ============ CLIENTES ============ -->
@@ -1320,6 +1349,83 @@ service cloud.firestore {
   </div>
 </div>
 
+<!-- ============ MODAL: PRESUPUESTO (Mejora 13) ============ -->
+<div id="modal-presupuesto" class="modal hidden">
+  <div class="modal-card wide">
+    <div class="flex justify-between items-center mb-4">
+      <h3 id="presupuesto-modal-title" class="font-display text-xl">Nuevo presupuesto</h3>
+      <button onclick="closePresupuestoModal()" class="text-2xl leading-none">&times;</button>
+    </div>
+    <form id="presupuesto-form" class="space-y-3">
+      <div>
+        <label class="label">Fecha</label>
+        <input type="date" id="presupuesto-fecha" required class="input">
+      </div>
+
+      <div class="border border-line rounded-lg p-3 bg-white">
+        <p class="font-display text-sm mb-2">Datos del cliente</p>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+          <div>
+            <label class="label">Nombre</label>
+            <input type="text" id="presupuesto-cliente-nombre" required class="input" placeholder="Obligatorio">
+          </div>
+          <div>
+            <label class="label">Apellido</label>
+            <input type="text" id="presupuesto-cliente-apellido" class="input" placeholder="Opcional">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="label">DNI</label>
+            <input type="text" id="presupuesto-cliente-dni" class="input" placeholder="Opcional">
+          </div>
+          <div>
+            <label class="label">Teléfono</label>
+            <input type="tel" id="presupuesto-cliente-telefono" class="input" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="label">Destino</label>
+        <input type="text" id="presupuesto-destino" required class="input" placeholder="Ej: Cancún, Bariloche...">
+      </div>
+      <div>
+        <label class="label">Mayorista</label>
+        <input type="text" id="presupuesto-mayorista" class="input" placeholder="Operador / mayorista (opcional)">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="label">Moneda</label>
+          <select id="presupuesto-moneda" class="input">
+            <option value="USD">USD</option>
+            <option value="ARS">ARS</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Costo neto</label>
+          <input type="number" step="0.01" min="0" id="presupuesto-costo" required class="input" value="0">
+        </div>
+        <div>
+          <label class="label">Precio venta</label>
+          <input type="number" step="0.01" min="0" id="presupuesto-precio" required class="input" value="0">
+        </div>
+      </div>
+
+      <div>
+        <label class="label">Notas (opcional)</label>
+        <textarea id="presupuesto-notas" class="input" rows="2" placeholder="Detalles, condiciones, vigencia..."></textarea>
+      </div>
+
+      <p class="text-sm bg-paper border border-line rounded-lg p-2">
+        Comisión estimada: <span id="presupuesto-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span>
+      </p>
+      <button type="submit" class="btn-primary w-full">Guardar presupuesto</button>
+    </form>
+  </div>
+</div>
+
 <!-- ============ MODAL: DETALLE / GESTIÓN DE FILE ============ -->
 <div id="modal-detail" class="modal hidden">
   <div class="modal-card wide">
@@ -1413,13 +1519,15 @@ const STORAGE_KEY = 'bitacora_viajes_v2';
 const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
 
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1 };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
 let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
 let dashPeriod = 'todo';
 let reportesMoneda = 'USD';
+let editingPresupuestoId = null;
+let presupuestoParaConvertir = null;
 
 /* ====================================================================
    ORDENAMIENTO DE TABLAS — persistido en localStorage
@@ -1608,6 +1716,7 @@ function load(){
       state.movs = data.movs || [];
       state.clientes = data.clientes || [];
       state.nextFileNo = data.nextFileNo || 1;
+      state.presupuestos = data.presupuestos || [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     return;
   }
@@ -1821,6 +1930,9 @@ function switchTab(name){
   }
   if(name === 'reportes'){
     renderReportes();
+  }
+  if(name === 'presupuestos'){
+    renderPresupuestos();
   }
 }
 function setDashCurrency(c){
@@ -2696,24 +2808,34 @@ function renderAll(){
   renderClientes();
   renderHistorial();
   renderReportes();
+  renderPresupuestos();
 }
 
 /* ====================================================================
    MODAL: NUEVO FILE
 ==================================================================== */
-function openFileModal(){
+function openFileModal(presupuesto){
   editingFileId = null;
-  document.getElementById('file-modal-title').textContent = 'Nuevo file';
+  presupuestoParaConvertir = presupuesto ? presupuesto.id : null;
+  document.getElementById('file-modal-title').textContent = presupuesto ? 'Nuevo file (desde presupuesto)' : 'Nuevo file';
   document.getElementById('file-form').reset();
   document.getElementById('file-fecha').value = todayStr();
   document.getElementById('file-fileno').value = state.nextFileNo;
   document.getElementById('file-fileno').disabled = false;
-  document.getElementById('file-moneda').value = 'USD';
-  document.getElementById('file-costo').value = '0';
-  document.getElementById('file-precio').value = '0';
+  document.getElementById('file-moneda').value = presupuesto ? presupuesto.moneda : 'USD';
+  document.getElementById('file-costo').value = presupuesto ? presupuesto.costoNeto : '0';
+  document.getElementById('file-precio').value = presupuesto ? presupuesto.precioVenta : '0';
   document.getElementById('file-vencimiento').value = '';
   document.getElementById('file-tc').value = '';
   document.getElementById('file-credito-mayorista').value = '0';
+  if(presupuesto){
+    document.getElementById('file-cliente-nombre').value = presupuesto.clienteNombre || '';
+    document.getElementById('file-cliente-apellido').value = presupuesto.clienteApellido || '';
+    document.getElementById('file-cliente-dni').value = presupuesto.clienteDni || '';
+    document.getElementById('file-cliente-telefono').value = presupuesto.clienteTelefono || '';
+    document.getElementById('file-destino').value = presupuesto.destino || '';
+    document.getElementById('file-mayorista').value = presupuesto.mayorista || '';
+  }
   updateComisionPreview();
   document.getElementById('modal-file').classList.remove('hidden');
 }
@@ -2721,6 +2843,7 @@ function openEditFileModal(id){
   const f = state.files.find(x=>x.id===id);
   if(!f) return;
   editingFileId = id;
+  presupuestoParaConvertir = null;
   document.getElementById('file-modal-title').textContent = `Editar file #${f.fileNo}`;
   document.getElementById('file-fileno').value = f.fileNo;
   document.getElementById('file-fileno').disabled = true; // el Nº de file no se puede editar para no romper referencias
@@ -2745,6 +2868,15 @@ function closeFileModal(){
   document.getElementById('modal-file').classList.add('hidden');
   document.getElementById('file-fileno').disabled = false;
   editingFileId = null;
+}
+function vincularConversionPresupuesto(file){
+  if(!presupuestoParaConvertir) return;
+  const p = state.presupuestos.find(x=>x.id===presupuestoParaConvertir);
+  if(p){
+    p.estado = 'convertido';
+    p.fileIdConvertido = file.id;
+  }
+  presupuestoParaConvertir = null;
 }
 function updateComisionPreview(){
   const costo = parseFloat(document.getElementById('file-costo').value) || 0;
@@ -2868,6 +3000,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
           vencimiento, tipoCambio
         };
         state.files.push(file);
+        vincularConversionPresupuesto(file);
         const numericVal = parseInt(fileNo, 10);
         if(!isNaN(numericVal) && String(numericVal) === fileNo){
           state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
@@ -2928,6 +3061,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       vencimiento, tipoCambio
     };
     state.files.push(file);
+    vincularConversionPresupuesto(file);
     const numericVal = parseInt(fileNo, 10);
     if(!isNaN(numericVal) && String(numericVal) === fileNo){
       state.nextFileNo = Math.max(state.nextFileNo, numericVal + 1);
@@ -2938,6 +3072,135 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   save();
   if(wasEditing && currentFileId === wasEditing) openDetail(currentFileId);
 });
+
+/* ====================================================================
+   PRESUPUESTOS / COTIZACIONES (Mejora 13)
+   No afectan cajas ni saldos. Se pueden convertir en un file real,
+   lo que precarga el modal de "Nuevo file" con sus datos.
+==================================================================== */
+function openPresupuestoModal(){
+  editingPresupuestoId = null;
+  document.getElementById('presupuesto-modal-title').textContent = 'Nuevo presupuesto';
+  document.getElementById('presupuesto-form').reset();
+  document.getElementById('presupuesto-fecha').value = todayStr();
+  document.getElementById('presupuesto-moneda').value = 'USD';
+  document.getElementById('presupuesto-costo').value = '0';
+  document.getElementById('presupuesto-precio').value = '0';
+  updatePresupuestoComisionPreview();
+  document.getElementById('modal-presupuesto').classList.remove('hidden');
+}
+function openEditPresupuestoModal(id){
+  const p = state.presupuestos.find(x=>x.id===id);
+  if(!p) return;
+  editingPresupuestoId = id;
+  document.getElementById('presupuesto-modal-title').textContent = 'Editar presupuesto';
+  document.getElementById('presupuesto-fecha').value = p.fecha;
+  document.getElementById('presupuesto-cliente-nombre').value = p.clienteNombre || '';
+  document.getElementById('presupuesto-cliente-apellido').value = p.clienteApellido || '';
+  document.getElementById('presupuesto-cliente-dni').value = p.clienteDni || '';
+  document.getElementById('presupuesto-cliente-telefono').value = p.clienteTelefono || '';
+  document.getElementById('presupuesto-destino').value = p.destino || '';
+  document.getElementById('presupuesto-mayorista').value = p.mayorista || '';
+  document.getElementById('presupuesto-moneda').value = p.moneda;
+  document.getElementById('presupuesto-costo').value = p.costoNeto;
+  document.getElementById('presupuesto-precio').value = p.precioVenta;
+  document.getElementById('presupuesto-notas').value = p.notas || '';
+  updatePresupuestoComisionPreview();
+  document.getElementById('modal-presupuesto').classList.remove('hidden');
+}
+function closePresupuestoModal(){
+  document.getElementById('modal-presupuesto').classList.add('hidden');
+  editingPresupuestoId = null;
+}
+function updatePresupuestoComisionPreview(){
+  const costo = parseFloat(document.getElementById('presupuesto-costo').value) || 0;
+  const precio = parseFloat(document.getElementById('presupuesto-precio').value) || 0;
+  const moneda = document.getElementById('presupuesto-moneda').value;
+  document.getElementById('presupuesto-comision-preview').textContent = fmt(precio - costo, moneda);
+}
+document.getElementById('presupuesto-costo').addEventListener('input', updatePresupuestoComisionPreview);
+document.getElementById('presupuesto-precio').addEventListener('input', updatePresupuestoComisionPreview);
+document.getElementById('presupuesto-moneda').addEventListener('change', updatePresupuestoComisionPreview);
+
+document.getElementById('presupuesto-form').addEventListener('submit', function(e){
+  e.preventDefault();
+  const clienteNombre = document.getElementById('presupuesto-cliente-nombre').value.trim();
+  const destino = document.getElementById('presupuesto-destino').value.trim();
+  if(!clienteNombre || !destino){
+    toast('Completá al menos el nombre del cliente y el destino.', 'error');
+    return;
+  }
+  const data = {
+    fecha: document.getElementById('presupuesto-fecha').value || todayStr(),
+    clienteNombre,
+    clienteApellido: document.getElementById('presupuesto-cliente-apellido').value.trim(),
+    clienteDni: document.getElementById('presupuesto-cliente-dni').value.trim(),
+    clienteTelefono: document.getElementById('presupuesto-cliente-telefono').value.trim(),
+    destino,
+    mayorista: document.getElementById('presupuesto-mayorista').value.trim(),
+    moneda: document.getElementById('presupuesto-moneda').value,
+    costoNeto: parseFloat(document.getElementById('presupuesto-costo').value) || 0,
+    precioVenta: parseFloat(document.getElementById('presupuesto-precio').value) || 0,
+    notas: document.getElementById('presupuesto-notas').value.trim()
+  };
+
+  if(editingPresupuestoId){
+    const p = state.presupuestos.find(x=>x.id===editingPresupuestoId);
+    if(p) Object.assign(p, data);
+  } else {
+    state.presupuestos.push(Object.assign({ id: Date.now(), estado: 'pendiente', fileIdConvertido: null }, data));
+  }
+  closePresupuestoModal();
+  save();
+  toast('Presupuesto guardado.', 'success');
+});
+
+function deletePresupuesto(id){
+  if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
+  state.presupuestos = state.presupuestos.filter(p=>p.id!==id);
+  save();
+}
+function convertirPresupuestoAFile(id){
+  const p = state.presupuestos.find(x=>x.id===id);
+  if(!p) return;
+  if(p.estado === 'convertido'){
+    toast('Este presupuesto ya fue convertido a un file.', 'info');
+    return;
+  }
+  openFileModal(p);
+}
+function renderPresupuestos(){
+  const tbody = document.getElementById('presupuestos-tbody');
+  if(!tbody) return;
+  const rows = [...state.presupuestos].sort((a,b)=> b.fecha.localeCompare(a.fecha) || b.id - a.id);
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-sm opacity-50">Todavía no hay presupuestos cargados.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(p => `
+    <tr class="border-b border-line last-border-0">
+      <td class="py-2 px-3">${esc(p.fecha)}</td>
+      <td class="py-2 px-3">${esc([p.clienteNombre, p.clienteApellido].filter(Boolean).join(' '))}</td>
+      <td class="py-2 px-3">${esc(p.destino)}</td>
+      <td class="py-2 px-3">${esc(p.mayorista || '—')}</td>
+      <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${p.moneda}</span></td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(p.costoNeto, p.moneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(p.precioVenta, p.moneda)}</td>
+      <td class="py-2 px-3 text-right font-mono-num" style="color:var(--gold)">${fmt(p.precioVenta - p.costoNeto, p.moneda)}</td>
+      <td class="py-2 px-3">${p.estado === 'convertido'
+        ? `<span class="badge badge-pagado">Convertido${p.fileIdConvertido ? '' : ''}</span>`
+        : '<span class="badge badge-pendiente" style="background:#E0E7FF; color:#3730A3">Pendiente</span>'}</td>
+      <td class="py-2 px-3 text-right">
+        ${p.estado === 'convertido'
+          ? (p.fileIdConvertido ? `<button onclick="switchTab('files'); openDetail(${p.fileIdConvertido});" class="text-xs underline opacity-60 hover-opacity-100">Ver file</button>`
+             : '<span class="opacity-40 text-xs">Convertido</span>')
+          : `<button onclick="convertirPresupuestoAFile(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Convertir a file</button>
+             <button onclick="openEditPresupuestoModal(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>`}
+        <button onclick="deletePresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </td>
+    </tr>
+  `).join('');
+}
 
 /* ====================================================================
    SALDO A FAVOR CON MAYORISTAS
@@ -3556,6 +3819,7 @@ function importData(evt){
       state.files = data.files;
       state.movs = data.movs;
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
+      state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
       const maxNo = state.files.reduce((max,f)=>{
         const n = parseInt(f.fileNo, 10);
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
@@ -3573,7 +3837,7 @@ function importData(evt){
 function resetAll(){
   if(!confirm('¿Seguro que querés borrar TODOS los datos (files, clientes, movimientos y saldos)? Esta acción no se puede deshacer.')) return;
   if(!confirm('Última confirmación: se perderá toda la información guardada localmente. ¿Continuar?')) return;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1 };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [] };
   save();
 }
 
