@@ -410,6 +410,57 @@
         <p class="text-xs opacity-40 mt-1">Deuda real con mayoristas</p>
       </div>
     </div>
+
+    <h2 class="font-display text-xl mb-3 mt-2 opacity-80">Proyección de cobros futuros</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">Vencidos</p>
+        <p id="proy-vencido-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--terracotta)">$0.00</p>
+        <p id="proy-vencido-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">0-7 días</p>
+        <p id="proy-0-7-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--gold)">$0.00</p>
+        <p id="proy-0-7-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">8-30 días</p>
+        <p id="proy-8-30-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--gold)">$0.00</p>
+        <p id="proy-8-30-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">31-60 días</p>
+        <p id="proy-31-60-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--green)">$0.00</p>
+        <p id="proy-31-60-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">61-90 días</p>
+        <p id="proy-61-90-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--green)">$0.00</p>
+        <p id="proy-61-90-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+      <div class="bg-white rounded-xl border border-line p-4">
+        <p class="text-xs uppercase tracking-widest opacity-50">+90 días / sin fecha</p>
+        <p id="proy-sinfecha-total" class="font-mono-num text-lg font-semibold mt-1" style="color:var(--slate)">$0.00</p>
+        <p id="proy-sinfecha-count" class="text-xs opacity-50 mt-1">0 files</p>
+      </div>
+    </div>
+    <div class="overflow-x-auto bg-white rounded-xl border border-line mb-2">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Nº</th>
+            <th class="py-2 px-3">Cliente</th>
+            <th class="py-2 px-3">Destino</th>
+            <th class="py-2 px-3">Vencimiento</th>
+            <th class="py-2 px-3 text-center">Días</th>
+            <th class="py-2 px-3">Estado</th>
+            <th class="py-2 px-3 text-right">Saldo a cobrar</th>
+          </tr>
+        </thead>
+        <tbody id="proyeccion-tbody"></tbody>
+      </table>
+    </div>
+    <p class="text-xs opacity-50 mb-6">Usa la moneda seleccionada arriba (Métricas clave). Solo incluye files con saldo pendiente del cliente. Los files sin fecha de vencimiento se listan al final.</p>
   </section>
 
   <!-- ============ FILES ============ -->
@@ -2195,6 +2246,66 @@ function renderDashboard(){
   document.getElementById('m-porpagar').textContent = fmt(t.porPagar, dashCurrency);
 
   renderAlertas();
+  renderProyeccionCobros();
+}
+
+/* ====================================================================
+   PROYECCIÓN DE COBROS FUTUROS (Mejora 26)
+==================================================================== */
+function renderProyeccionCobros(){
+  const tbody = document.getElementById('proyeccion-tbody');
+  if(!tbody) return;
+
+  const buckets = {
+    'vencido': { count: 0, total: 0, label: 'Vencido' },
+    '0-7':     { count: 0, total: 0, label: '0-7 días' },
+    '8-30':    { count: 0, total: 0, label: '8-30 días' },
+    '31-60':   { count: 0, total: 0, label: '31-60 días' },
+    '61-90':   { count: 0, total: 0, label: '61-90 días' },
+    'sinfecha':{ count: 0, total: 0, label: '+90 días / sin fecha' }
+  };
+
+  const rows = state.files
+    .filter(f => f.moneda === dashCurrency && f.saldoCliente > 0)
+    .map(f => {
+      const dias = f.vencimiento ? diasRestantes(f.vencimiento) : null;
+      let key;
+      if(dias === null) key = 'sinfecha';
+      else if(dias < 0) key = 'vencido';
+      else if(dias <= 7) key = '0-7';
+      else if(dias <= 30) key = '8-30';
+      else if(dias <= 60) key = '31-60';
+      else if(dias <= 90) key = '61-90';
+      else key = 'sinfecha';
+      buckets[key].count++;
+      buckets[key].total += f.saldoCliente;
+      return { f, dias, key };
+    })
+    .sort((a, b) => {
+      if(a.dias === null) return 1;
+      if(b.dias === null) return -1;
+      return a.dias - b.dias;
+    });
+
+  Object.keys(buckets).forEach(key => {
+    const b = buckets[key];
+    const totalEl = document.getElementById('proy-' + key + '-total');
+    const countEl = document.getElementById('proy-' + key + '-count');
+    if(totalEl) totalEl.textContent = fmt(b.total, dashCurrency);
+    if(countEl) countEl.textContent = b.count + (b.count === 1 ? ' file' : ' files');
+  });
+
+  tbody.innerHTML = rows.map(({ f, dias, key }) => `
+    <tr class="border-b border-line last-border-0 cursor-pointer hover-bg-paper" onclick="switchTab('files'); openDetail(${f.id});">
+      <td class="py-2 px-3">${esc(f.fileNo)}</td>
+      <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
+      <td class="py-2 px-3">${esc(f.destino)}</td>
+      <td class="py-2 px-3">${f.vencimiento ? esc(f.vencimiento) : '<span class="opacity-40">—</span>'}</td>
+      <td class="py-2 px-3 text-center">${dias === null ? '—' : dias}</td>
+      <td class="py-2 px-3">${buckets[key].label}</td>
+      <td class="py-2 px-3 text-right font-mono-num">${fmt(f.saldoCliente, dashCurrency)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="7" class="py-4 px-3 text-center opacity-50">Sin saldos pendientes en ${dashCurrency}.</td></tr>`;
 }
 
 function renderAlertas(){
