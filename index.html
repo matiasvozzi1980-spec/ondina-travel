@@ -1448,6 +1448,7 @@ service cloud.firestore {
         <input type="date" id="detail-vencimiento" class="input w-auto">
         <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
         <span id="detail-venc-badge"></span>
+        <button type="button" id="detail-venc-wa-btn" onclick="enviarAlertaVencimientoWA(currentFileId)" class="btn-ghost hidden">Avisar por WhatsApp</button>
       </div>
 
       <div class="flex gap-2 flex-wrap">
@@ -2109,9 +2110,50 @@ function renderAlertas(){
         <p class="text-sm font-semibold">#${f.fileNo} — ${esc(clienteNombreCompleto(f))} <span class="opacity-50">(${esc(f.destino)})</span></p>
         <p class="text-xs opacity-60">${detalles.join(' · ')} · vence ${esc(f.vencimiento)}</p>
       </div>
-      ${badge}
+      <div class="flex items-center gap-2 shrink-0">
+        <button onclick="event.stopPropagation(); enviarAlertaVencimientoWA(${f.id})" class="btn-ghost" style="padding:5px 10px; font-size:0.75rem;">WhatsApp</button>
+        ${badge}
+      </div>
     </div>`;
   }).join('');
+}
+
+/* ====================================================================
+   ALERTA DE VENCIMIENTO POR WHATSAPP (Mejora 14)
+==================================================================== */
+function abrirWhatsAppConMensaje(numero, mensaje){
+  numero = (numero || '').replace(/\D/g,'');
+  const waText = encodeURIComponent(mensaje);
+  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = 'whatsapp://send?phone=' + numero + '&text=' + waText;
+    setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero + '&text=' + waText, '_blank'); }, 2000);
+  } else {
+    window.open('https://wa.me/' + numero + '?text=' + waText, '_blank');
+  }
+}
+function mensajeAlertaVencimiento(f){
+  const info = vencimientoInfo(f);
+  const estadoTxt = info && info.estado === 'vencido'
+    ? `venció hace ${Math.abs(info.dias)} día(s)`
+    : (info ? `vence en ${info.dias} día(s)` : 'está por vencer');
+  const detalles = [];
+  if(f.saldoCliente > 0) detalles.push(`Saldo pendiente: ${fmt(f.saldoCliente, f.moneda)}`);
+  const detalleTxt = detalles.length ? ('\n' + detalles.join('\n')) : '';
+  return `Hola ${f.clienteNombre || ''}! Te escribimos de Ondina Travel por tu file #${f.fileNo} (${f.destino}), que ${estadoTxt} (${f.vencimiento || '—'}).${detalleTxt}\n\n¿Podemos coordinar el pago?`;
+}
+function enviarAlertaVencimientoWA(fileId){
+  const f = state.files.find(x=>x.id===fileId);
+  if(!f) return;
+  const mensaje = mensajeAlertaVencimiento(f);
+  let numero = (f.clienteTelefono || '').replace(/\D/g,'');
+  if(!numero){
+    const input = prompt(`No hay teléfono cargado para ${clienteNombreCompleto(f)}.\nIngresá el número con código de país (ej: 5491122334455):`);
+    if(!input) return;
+    numero = input.replace(/\D/g,'');
+    if(!numero){ toast('Número inválido.', 'error'); return; }
+  }
+  abrirWhatsAppConMensaje(numero, mensaje);
 }
 
 /* ====================================================================
@@ -3271,10 +3313,11 @@ function openDetail(id){
   document.getElementById('detail-vencimiento').value = f.vencimiento || '';
   const vinfo = vencimientoInfo(f);
   const badgeEl = document.getElementById('detail-venc-badge');
-  if(!vinfo) badgeEl.innerHTML = '';
-  else if(vinfo.estado === 'vencido') badgeEl.innerHTML = `<span class="badge badge-pendiente">Vencido hace ${Math.abs(vinfo.dias)} día(s)</span>`;
-  else if(vinfo.estado === 'porvencer') badgeEl.innerHTML = `<span class="badge badge-parcial">Vence en ${vinfo.dias} día(s)</span>`;
-  else badgeEl.innerHTML = '';
+  const waBtn = document.getElementById('detail-venc-wa-btn');
+  if(!vinfo){ badgeEl.innerHTML = ''; if(waBtn) waBtn.classList.add('hidden'); }
+  else if(vinfo.estado === 'vencido'){ badgeEl.innerHTML = `<span class="badge badge-pendiente">Vencido hace ${Math.abs(vinfo.dias)} día(s)</span>`; if(waBtn) waBtn.classList.remove('hidden'); }
+  else if(vinfo.estado === 'porvencer'){ badgeEl.innerHTML = `<span class="badge badge-parcial">Vence en ${vinfo.dias} día(s)</span>`; if(waBtn) waBtn.classList.remove('hidden'); }
+  else { badgeEl.innerHTML = ''; if(waBtn) waBtn.classList.add('hidden'); }
 
   document.getElementById('cobro-moneda-label').textContent = f.moneda;
   document.getElementById('pago-moneda-label').textContent = f.moneda;
