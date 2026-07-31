@@ -63,6 +63,19 @@
   .ticket-notch.bottom{ bottom:-8px; }
   .ticket-body{ flex:1; padding:14px 16px; min-width:0; }
 
+  /* ---- Estado de las cajas: bento ---- */
+  .caja-hero{ background:var(--ink); color:#fff; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; justify-content:center; min-width:0; }
+  .caja-hero-icon{ width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; font-size:1.05rem; margin-bottom:10px; }
+  .caja-hero-label{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(255,255,255,0.55); }
+  .caja-hero-usd{ font-size:1.5rem; font-weight:600; margin-top:4px; }
+  .caja-hero-ars{ font-size:1rem; font-weight:600; color:rgba(255,255,255,0.65); }
+  .caja-hero-sub{ font-size:0.7rem; color:rgba(255,255,255,0.45); margin-top:8px; }
+  .caja-mini{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; min-width:0; }
+  .caja-mini-badge{ width:26px; height:26px; border-radius:50%; color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; font-size:0.75rem; margin-bottom:8px; }
+  .caja-mini-name{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; opacity:0.5; }
+  .caja-mini-usd{ font-size:1rem; font-weight:600; margin-top:2px; }
+  .caja-mini-ars{ font-size:0.8rem; font-weight:600; opacity:0.6; }
+
   table th, table td{ white-space:nowrap; }
   .chart-wrap{ position:relative; height:260px; }
 
@@ -246,6 +259,10 @@
   @media (max-width:640px){
     .header-search{ order:3; flex-basis:100%; max-width:none; margin:10px 0 0 0; }
   }
+
+  /* ---- Autocompletar cliente en File / Presupuesto ---- */
+  .cliente-autocomplete-wrap{ position:relative; }
+  .cliente-autocomplete-results{ position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.15); max-height:260px; overflow-y:auto; z-index:600; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -315,55 +332,44 @@
   <section id="tab-dashboard" class="tab-section">
 
     <h2 class="font-display text-xl mb-3 opacity-80">Estado de las cajas (USD / ARS)</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-      <div class="ticket">
-        <div class="ticket-stub" style="background:#374151">BANCO<span class="ticket-notch top"></span><span class="ticket-notch bottom"></span></div>
-        <div class="ticket-body">
-          <p class="text-xs uppercase tracking-widest opacity-50">Caja</p>
-          <p class="font-display text-lg">Banco</p>
-          <p id="bal-Banco-USD" class="font-mono-num text-lg font-semibold mt-1">US$ 0.00</p>
-          <p id="bal-Banco-ARS" class="font-mono-num text-lg font-semibold opacity-70">AR$ 0.00</p>
-          <p class="text-xs opacity-50 mt-1">Saldo disponible</p>
-        </div>
+    <div class="flex flex-wrap gap-4 mb-6">
+      <div class="caja-hero" style="flex:1 1 240px">
+        <div class="caja-hero-icon">$</div>
+        <p class="caja-hero-label">Total disponible</p>
+        <p id="bal-total-USD" class="caja-hero-usd font-mono-num">US$ 0.00</p>
+        <p id="bal-total-ARS" class="caja-hero-ars font-mono-num">AR$ 0.00</p>
+        <p class="caja-hero-sub">Suma de las 5 cajas</p>
       </div>
-      <div class="ticket">
-        <div class="ticket-stub" style="background:#4B5563">IVANA<span class="ticket-notch top"></span><span class="ticket-notch bottom"></span></div>
-        <div class="ticket-body">
-          <p class="text-xs uppercase tracking-widest opacity-50">Caja</p>
-          <p class="font-display text-lg">Ivana</p>
-          <p id="bal-Ivana-USD" class="font-mono-num text-lg font-semibold mt-1">US$ 0.00</p>
-          <p id="bal-Ivana-ARS" class="font-mono-num text-lg font-semibold opacity-70">AR$ 0.00</p>
-          <p class="text-xs opacity-50 mt-1">Saldo disponible</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" style="flex:2 1 380px">
+        <div class="caja-mini">
+          <div class="caja-mini-badge" style="background:#374151">B</div>
+          <p class="caja-mini-name">Banco</p>
+          <p id="bal-Banco-USD" class="caja-mini-usd font-mono-num">US$ 0.00</p>
+          <p id="bal-Banco-ARS" class="caja-mini-ars font-mono-num">AR$ 0.00</p>
         </div>
-      </div>
-      <div class="ticket">
-        <div class="ticket-stub" style="background:#6B7280">RAUL<span class="ticket-notch top"></span><span class="ticket-notch bottom"></span></div>
-        <div class="ticket-body">
-          <p class="text-xs uppercase tracking-widest opacity-50">Caja</p>
-          <p class="font-display text-lg">Raúl</p>
-          <p id="bal-Raul-USD" class="font-mono-num text-lg font-semibold mt-1">US$ 0.00</p>
-          <p id="bal-Raul-ARS" class="font-mono-num text-lg font-semibold opacity-70">AR$ 0.00</p>
-          <p class="text-xs opacity-50 mt-1">Saldo disponible</p>
+        <div class="caja-mini">
+          <div class="caja-mini-badge" style="background:#4B5563">I</div>
+          <p class="caja-mini-name">Ivana</p>
+          <p id="bal-Ivana-USD" class="caja-mini-usd font-mono-num">US$ 0.00</p>
+          <p id="bal-Ivana-ARS" class="caja-mini-ars font-mono-num">AR$ 0.00</p>
         </div>
-      </div>
-      <div class="ticket">
-        <div class="ticket-stub" style="background:#9CA3AF">CASA<span class="ticket-notch top"></span><span class="ticket-notch bottom"></span></div>
-        <div class="ticket-body">
-          <p class="text-xs uppercase tracking-widest opacity-50">Caja</p>
-          <p class="font-display text-lg">Casa</p>
-          <p id="bal-Casa-USD" class="font-mono-num text-lg font-semibold mt-1">US$ 0.00</p>
-          <p id="bal-Casa-ARS" class="font-mono-num text-lg font-semibold opacity-70">AR$ 0.00</p>
-          <p class="text-xs opacity-50 mt-1">Saldo disponible</p>
+        <div class="caja-mini">
+          <div class="caja-mini-badge" style="background:#6B7280">R</div>
+          <p class="caja-mini-name">Raúl</p>
+          <p id="bal-Raul-USD" class="caja-mini-usd font-mono-num">US$ 0.00</p>
+          <p id="bal-Raul-ARS" class="caja-mini-ars font-mono-num">AR$ 0.00</p>
         </div>
-      </div>
-      <div class="ticket">
-        <div class="ticket-stub" style="background:#6366F1">JULI<span class="ticket-notch top"></span><span class="ticket-notch bottom"></span></div>
-        <div class="ticket-body">
-          <p class="text-xs uppercase tracking-widest opacity-50">Caja</p>
-          <p class="font-display text-lg">Juli</p>
-          <p id="bal-Juli-USD" class="font-mono-num text-lg font-semibold mt-1">US$ 0.00</p>
-          <p id="bal-Juli-ARS" class="font-mono-num text-lg font-semibold opacity-70">AR$ 0.00</p>
-          <p class="text-xs opacity-50 mt-1">Saldo disponible</p>
+        <div class="caja-mini">
+          <div class="caja-mini-badge" style="background:#9CA3AF">C</div>
+          <p class="caja-mini-name">Casa</p>
+          <p id="bal-Casa-USD" class="caja-mini-usd font-mono-num">US$ 0.00</p>
+          <p id="bal-Casa-ARS" class="caja-mini-ars font-mono-num">AR$ 0.00</p>
+        </div>
+        <div class="caja-mini">
+          <div class="caja-mini-badge" style="background:#6366F1">J</div>
+          <p class="caja-mini-name">Juli</p>
+          <p id="bal-Juli-USD" class="caja-mini-usd font-mono-num">US$ 0.00</p>
+          <p id="bal-Juli-ARS" class="caja-mini-ars font-mono-num">AR$ 0.00</p>
         </div>
       </div>
     </div>
@@ -1351,15 +1357,18 @@ service cloud.firestore {
 
       <div class="border border-line rounded-lg p-3 bg-white">
         <p class="font-display text-sm mb-2">Datos del cliente</p>
-        <div class="grid grid-cols-2 gap-3 mb-2">
-          <div>
-            <label class="label">Nombre</label>
-            <input type="text" id="file-cliente-nombre" required class="input" placeholder="Obligatorio">
+        <div class="cliente-autocomplete-wrap mb-2">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="label">Apellido</label>
+              <input type="text" id="file-cliente-apellido" class="input" placeholder="Opcional" autocomplete="off">
+            </div>
+            <div>
+              <label class="label">Nombre</label>
+              <input type="text" id="file-cliente-nombre" required class="input" placeholder="Obligatorio" autocomplete="off">
+            </div>
           </div>
-          <div>
-            <label class="label">Apellido</label>
-            <input type="text" id="file-cliente-apellido" class="input" placeholder="Opcional">
-          </div>
+          <div id="file-cliente-autocomplete-results" class="cliente-autocomplete-results hidden"></div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
@@ -1375,7 +1384,7 @@ service cloud.firestore {
             <input type="tel" id="file-cliente-telefono" class="input" placeholder="Opcional">
           </div>
         </div>
-        <p class="text-xs opacity-50 mt-2">Estos datos se guardan automáticamente en la base de clientes (pestaña "Clientes").</p>
+        <p class="text-xs opacity-50 mt-2">Empezá a tipear el apellido o nombre para elegir un cliente ya cargado, o completá los datos para crear uno nuevo. Se guardan automáticamente en la base de clientes (pestaña "Clientes").</p>
       </div>
 
       <div>
@@ -1445,15 +1454,18 @@ service cloud.firestore {
 
       <div class="border border-line rounded-lg p-3 bg-white">
         <p class="font-display text-sm mb-2">Datos del cliente</p>
-        <div class="grid grid-cols-2 gap-3 mb-2">
-          <div>
-            <label class="label">Nombre</label>
-            <input type="text" id="presupuesto-cliente-nombre" required class="input" placeholder="Obligatorio">
+        <div class="cliente-autocomplete-wrap mb-2">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="label">Apellido</label>
+              <input type="text" id="presupuesto-cliente-apellido" class="input" placeholder="Opcional" autocomplete="off">
+            </div>
+            <div>
+              <label class="label">Nombre</label>
+              <input type="text" id="presupuesto-cliente-nombre" required class="input" placeholder="Obligatorio" autocomplete="off">
+            </div>
           </div>
-          <div>
-            <label class="label">Apellido</label>
-            <input type="text" id="presupuesto-cliente-apellido" class="input" placeholder="Opcional">
-          </div>
+          <div id="presupuesto-cliente-autocomplete-results" class="cliente-autocomplete-results hidden"></div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -1465,6 +1477,7 @@ service cloud.firestore {
             <input type="tel" id="presupuesto-cliente-telefono" class="input" placeholder="Opcional">
           </div>
         </div>
+        <p class="text-xs opacity-50 mt-2">Empezá a tipear el apellido o nombre para elegir un cliente ya cargado.</p>
       </div>
 
       <div>
@@ -2236,6 +2249,11 @@ function renderDashboard(){
       const el = document.getElementById(`bal-${c}-${m}`);
       if(el) el.textContent = fmt(cajaBalance(c,m), m);
     });
+  });
+  MONEDAS.forEach(m=>{
+    const totalCaja = CAJAS.reduce((acc,c)=> acc + cajaBalance(c,m), 0);
+    const el = document.getElementById(`bal-total-${m}`);
+    if(el) el.textContent = fmt(totalCaja, m);
   });
 
   const t = totals(dashCurrency);
@@ -3210,6 +3228,7 @@ function openFileModal(presupuesto){
   presupuestoParaConvertir = presupuesto ? presupuesto.id : null;
   document.getElementById('file-modal-title').textContent = presupuesto ? 'Nuevo file (desde presupuesto)' : 'Nuevo file';
   document.getElementById('file-form').reset();
+  hideClienteAutocomplete('file');
   document.getElementById('file-fecha').value = todayStr();
   document.getElementById('file-fileno').value = state.nextFileNo;
   document.getElementById('file-fileno').disabled = false;
@@ -3235,6 +3254,7 @@ function openEditFileModal(id){
   if(!f) return;
   editingFileId = id;
   presupuestoParaConvertir = null;
+  hideClienteAutocomplete('file');
   document.getElementById('file-modal-title').textContent = `Editar file #${f.fileNo}`;
   document.getElementById('file-fileno').value = f.fileNo;
   document.getElementById('file-fileno').disabled = true; // el Nº de file no se puede editar para no romper referencias
@@ -3259,6 +3279,7 @@ function closeFileModal(){
   document.getElementById('modal-file').classList.add('hidden');
   document.getElementById('file-fileno').disabled = false;
   editingFileId = null;
+  hideClienteAutocomplete('file');
 }
 function vincularConversionPresupuesto(file){
   if(!presupuestoParaConvertir) return;
@@ -3473,6 +3494,7 @@ function openPresupuestoModal(){
   editingPresupuestoId = null;
   document.getElementById('presupuesto-modal-title').textContent = 'Nuevo presupuesto';
   document.getElementById('presupuesto-form').reset();
+  hideClienteAutocomplete('presupuesto');
   document.getElementById('presupuesto-fecha').value = todayStr();
   document.getElementById('presupuesto-moneda').value = 'USD';
   document.getElementById('presupuesto-costo').value = '0';
@@ -3484,6 +3506,7 @@ function openEditPresupuestoModal(id){
   const p = state.presupuestos.find(x=>x.id===id);
   if(!p) return;
   editingPresupuestoId = id;
+  hideClienteAutocomplete('presupuesto');
   document.getElementById('presupuesto-modal-title').textContent = 'Editar presupuesto';
   document.getElementById('presupuesto-fecha').value = p.fecha;
   document.getElementById('presupuesto-cliente-nombre').value = p.clienteNombre || '';
@@ -3502,6 +3525,7 @@ function openEditPresupuestoModal(id){
 function closePresupuestoModal(){
   document.getElementById('modal-presupuesto').classList.add('hidden');
   editingPresupuestoId = null;
+  hideClienteAutocomplete('presupuesto');
 }
 function updatePresupuestoComisionPreview(){
   const costo = parseFloat(document.getElementById('presupuesto-costo').value) || 0;
@@ -3747,6 +3771,74 @@ document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
     var results = document.getElementById('global-search-results');
     if(results) results.classList.add('hidden');
+  }
+});
+
+/* ====================================================================
+   AUTOCOMPLETAR CLIENTE EN FILE / PRESUPUESTO
+==================================================================== */
+function hideClienteAutocomplete(prefix){
+  var results = document.getElementById(prefix + '-cliente-autocomplete-results');
+  if(results){ results.classList.add('hidden'); results.innerHTML = ''; }
+}
+function buildClienteAutocomplete(prefix){
+  var apellidoEl = document.getElementById(prefix + '-cliente-apellido');
+  var nombreEl = document.getElementById(prefix + '-cliente-nombre');
+  var results = document.getElementById(prefix + '-cliente-autocomplete-results');
+  if(!apellidoEl || !nombreEl || !results) return;
+  var q = ((apellidoEl.value || '') + ' ' + (nombreEl.value || '')).trim().toLowerCase();
+  if(q.replace(/\s+/g,'').length < 2){ hideClienteAutocomplete(prefix); return; }
+
+  var terms = q.split(/\s+/).filter(Boolean);
+  var matches = state.clientes.filter(function(c){
+    var full = ((c.apellido||'') + ' ' + (c.nombre||'')).toLowerCase();
+    var dni = (c.dni||'').toLowerCase();
+    return terms.every(function(t){ return full.includes(t) || dni.includes(t); });
+  }).slice(0, 8);
+
+  if(matches.length === 0){
+    results.innerHTML = '<div class="header-search-item opacity-50">Sin coincidencias — se creará un cliente nuevo</div>';
+  } else {
+    results.innerHTML = matches.map(function(c){
+      var nombreCompleto = (c.apellido ? esc(c.apellido) + ', ' : '') + esc(c.nombre || '');
+      var detalle = [c.dni ? 'DNI ' + c.dni : null, c.telefono || null].filter(Boolean).join(' · ');
+      return '<div class="header-search-item" onclick="selectClienteAutocomplete(\'' + prefix + '\',' + c.id + ')">' +
+        '<strong>' + nombreCompleto + '</strong>' +
+        (detalle ? '<br><span class="opacity-50 text-xs">' + esc(detalle) + '</span>' : '') +
+        '</div>';
+    }).join('');
+  }
+  results.classList.remove('hidden');
+}
+function selectClienteAutocomplete(prefix, clienteId){
+  var c = state.clientes.find(function(x){ return x.id === clienteId; });
+  if(!c) return;
+  var setVal = function(id, val){ var el = document.getElementById(id); if(el) el.value = val || ''; };
+  setVal(prefix + '-cliente-nombre', c.nombre);
+  setVal(prefix + '-cliente-apellido', c.apellido);
+  setVal(prefix + '-cliente-dni', c.dni);
+  setVal(prefix + '-cliente-nacimiento', c.nacimiento);
+  setVal(prefix + '-cliente-telefono', c.telefono);
+  hideClienteAutocomplete(prefix);
+  toast('Datos del cliente cargados.', 'info');
+}
+['file','presupuesto'].forEach(function(prefix){
+  var apellidoEl = document.getElementById(prefix + '-cliente-apellido');
+  var nombreEl = document.getElementById(prefix + '-cliente-nombre');
+  if(apellidoEl) apellidoEl.addEventListener('input', function(){ buildClienteAutocomplete(prefix); });
+  if(nombreEl) nombreEl.addEventListener('input', function(){ buildClienteAutocomplete(prefix); });
+});
+document.addEventListener('click', function(e){
+  ['file','presupuesto'].forEach(function(prefix){
+    var wrap = document.getElementById(prefix + '-cliente-apellido');
+    var container = wrap ? wrap.closest('.cliente-autocomplete-wrap') : null;
+    if(container && !container.contains(e.target)) hideClienteAutocomplete(prefix);
+  });
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    hideClienteAutocomplete('file');
+    hideClienteAutocomplete('presupuesto');
   }
 });
 function closeDetailModal(){
