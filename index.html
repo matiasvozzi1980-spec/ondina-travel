@@ -349,9 +349,9 @@
 <!-- TABS -->
 <nav class="max-w-7xl mx-auto px-6 pt-3 flex gap-1 overflow-x-auto">
   <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+  <button class="tab-btn" data-tab="presupuestos" onclick="switchTab('presupuestos')">Presupuestos</button>
   <button class="tab-btn" data-tab="files" onclick="switchTab('files')">Files<span id="files-alert-dot" class="alert-dot hidden"></span></button>
   <button class="tab-btn" data-tab="listado" onclick="switchTab('listado')">Listado de files</button>
-  <button class="tab-btn" data-tab="presupuestos" onclick="switchTab('presupuestos')">Presupuestos</button>
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
@@ -644,6 +644,7 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+            <th class="py-2 px-3">Nº</th>
             <th class="py-2 px-3">Fecha</th>
             <th class="py-2 px-3">Cliente</th>
             <th class="py-2 px-3">Destino</th>
@@ -1711,7 +1712,7 @@ const FILE_TABLE_COLS = 14;
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
 const ADMIN_AUTH_DEFAULT = { usuario: 'admin', clave: 'ondina2026' };
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [] };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [] };
 
 /* ====================================================================
    USUARIOS Y ROLES (vendedores con acceso restringido)
@@ -1948,12 +1949,14 @@ function load(){
       state.clientes = data.clientes || [];
       state.nextFileNo = data.nextFileNo || 1;
       state.presupuestos = data.presupuestos || [];
+      state.nextPresupuestoNo = data.nextPresupuestoNo || 1;
       state.gastoCategorias = (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
       state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
       state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
       state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     seedMayoristasSiVacio();
+    seedPresupuestoNumerosSiFaltan();
     return;
   }
   // Migración desde la versión anterior (mono-moneda, sin base de clientes)
@@ -1983,6 +1986,16 @@ function load(){
     }catch(e){ console.error('No se pudo migrar la información anterior', e); }
   }
   seedMayoristasSiVacio();
+  seedPresupuestoNumerosSiFaltan();
+}
+function seedPresupuestoNumerosSiFaltan(){
+  const sinNumero = (state.presupuestos || []).filter(p => !p.presupuestoNo);
+  if(sinNumero.length){
+    const ordenados = sinNumero.slice().sort((a,b)=> a.fecha.localeCompare(b.fecha) || a.id - b.id);
+    ordenados.forEach(p => { p.presupuestoNo = state.nextPresupuestoNo++; });
+  }
+  const maxActual = (state.presupuestos || []).reduce((max,p)=> Math.max(max, p.presupuestoNo || 0), 0);
+  if(state.nextPresupuestoNo <= maxActual) state.nextPresupuestoNo = maxActual + 1;
 }
 function seedMayoristasSiVacio(){
   // La primera vez, arma la lista de mayoristas a partir de los que ya se venían usando
@@ -2975,7 +2988,7 @@ async function generarPdfPresupuesto(id){
       '</div>' +
       '<div style="text-align:right;">' +
         '<div style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Presupuesto Nº</div>' +
-        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:18px;font-weight:600;">' + p.id + '</div>' +
+        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:18px;font-weight:600;">' + (p.presupuestoNo || p.id) + '</div>' +
         '<div style="font-size:11px;color:#6B7280;margin-top:4px;">Emitido el ' + hoy + '</div>' +
       '</div>' +
     '</div>' +
@@ -3033,7 +3046,7 @@ async function generarPdfPresupuesto(id){
       pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
       heightLeft -= pageH;
     }
-    pdf.save('presupuesto-' + p.id + '.pdf');
+    pdf.save('presupuesto-' + (p.presupuestoNo || p.id) + '.pdf');
     toast('PDF generado.', 'success');
   }catch(err){
     if(contenedor.parentNode) document.body.removeChild(contenedor);
@@ -3965,7 +3978,8 @@ document.getElementById('presupuesto-form').addEventListener('submit', function(
     const p = state.presupuestos.find(x=>x.id===editingPresupuestoId);
     if(p) Object.assign(p, data);
   } else {
-    state.presupuestos.push(Object.assign({ id: Date.now(), estado: 'pendiente', fileIdConvertido: null, vendedorNombre: currentUserNombre || 'Administrador' }, data));
+    const presupuestoNo = state.nextPresupuestoNo++;
+    state.presupuestos.push(Object.assign({ id: Date.now(), presupuestoNo, estado: 'pendiente', fileIdConvertido: null, vendedorNombre: currentUserNombre || 'Administrador' }, data));
   }
   closePresupuestoModal();
   save();
@@ -3991,11 +4005,12 @@ function renderPresupuestos(){
   if(!tbody) return;
   const rows = [...state.presupuestos].sort((a,b)=> b.fecha.localeCompare(a.fecha) || b.id - a.id);
   if(rows.length === 0){
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-sm opacity-50">Todavía no hay presupuestos cargados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center py-6 text-sm opacity-50">Todavía no hay presupuestos cargados.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(p => `
     <tr class="border-b border-line last-border-0">
+      <td class="py-2 px-3 font-mono-num">${p.presupuestoNo || '—'}</td>
       <td class="py-2 px-3">${esc(p.fecha)}</td>
       <td class="py-2 px-3">${esc([p.clienteNombre, p.clienteApellido].filter(Boolean).join(' '))}</td>
       <td class="py-2 px-3">${esc(p.destino)}</td>
@@ -4724,6 +4739,8 @@ function importData(evt){
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
       }, 0);
       state.nextFileNo = data.nextFileNo || (maxNo + 1);
+      state.nextPresupuestoNo = data.nextPresupuestoNo || 1;
+      seedPresupuestoNumerosSiFaltan();
       save();
       toast('Datos importados correctamente.', 'success');
     }catch(err){
@@ -4740,7 +4757,7 @@ function resetAll(){
   const usuariosPrevios = state.usuarios;
   const adminAuthPrevio = state.adminAuth;
   const mayoristasPrevios = state.mayoristas;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios };
   save();
 }
 
@@ -4814,11 +4831,13 @@ function initFirebase(){
           state.clientes = data.clientes || [];
           state.nextFileNo = data.nextFileNo || 1;
           state.presupuestos = data.presupuestos || [];
+          state.nextPresupuestoNo = data.nextPresupuestoNo || 1;
           state.gastoCategorias = (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
           state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
           state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
           state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
           seedMayoristasSiVacio();
+          seedPresupuestoNumerosSiFaltan();
           persist();
           buildAjusteCajas();
           renderGastoCategoriaSelect();
