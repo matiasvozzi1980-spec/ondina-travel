@@ -2960,7 +2960,7 @@ async function generarPdfPresupuesto(id){
 
   const imagenesHtml = (p.imagenes && p.imagenes.length)
     ? '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">' +
-        p.imagenes.map(function(src){ return '<img src="'+src+'" style="max-width:100%;width:520px;border:1px solid #E5E5E5;border-radius:6px;display:block;">'; }).join('') +
+        p.imagenes.map(function(im){ var src = (im && im.dataUrl) ? im.dataUrl : im; return '<img src="'+src+'" style="max-width:100%;width:520px;border:1px solid #E5E5E5;border-radius:6px;display:block;">'; }).join('') +
       '</div>'
     : '';
 
