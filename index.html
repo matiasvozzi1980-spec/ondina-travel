@@ -3001,6 +3001,17 @@ async function generarPdfPresupuesto(id){
 
   document.body.appendChild(contenedor);
   try{
+    const imgs = Array.from(contenedor.querySelectorAll('img'));
+    await Promise.all(imgs.map(function(img){
+      if(img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(function(resolve){
+        img.addEventListener('load', resolve, { once:true });
+        img.addEventListener('error', resolve, { once:true });
+      });
+    }));
+    // Pequeña espera extra para que el navegador termine de pintar el layout.
+    await new Promise(function(resolve){ setTimeout(resolve, 60); });
+
     const canvas = await html2canvas(contenedor, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false });
     document.body.removeChild(contenedor);
 
