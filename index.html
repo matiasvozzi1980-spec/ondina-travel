@@ -279,6 +279,27 @@
   </div>
 </div>
 
+<div id="login-gate" class="modal" style="z-index:250;">
+  <div class="modal-card" style="max-width:24rem; text-align:center;">
+    <h3 class="brand-name text-lg mb-1">Ondina <span class="opacity-70">Travel</span></h3>
+    <p class="text-sm opacity-70 mb-4">¿Quién va a usar la app?</p>
+
+    <div id="login-choice">
+      <button onclick="showLoginForm('admin')" class="btn-primary w-full mb-2">Soy administrador</button>
+      <button onclick="showLoginForm('vendedor')" class="btn-ghost w-full">Soy vendedor</button>
+    </div>
+
+    <div id="login-form-wrap" class="hidden">
+      <p id="login-form-title" class="font-display text-sm mb-2"></p>
+      <input type="text" id="login-usuario" class="input mb-2" placeholder="Usuario" autocomplete="username">
+      <input type="password" id="login-clave" class="input mb-2" placeholder="Contraseña" autocomplete="current-password">
+      <button onclick="attemptLogin()" class="btn-primary w-full">Ingresar</button>
+      <button onclick="backToLoginChoice()" class="btn-ghost w-full mt-2">Volver</button>
+      <p id="login-error" class="text-xs mt-2" style="color:var(--terracotta)"></p>
+    </div>
+  </div>
+</div>
+
 <div id="storage-warning" class="hidden bg-terracotta text-white text-sm">
   <div class="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between gap-3 flex-wrap">
     <p>⚠️ Este navegador no permite guardar datos de forma permanente en este momento: lo que hagas se perderá al cerrar la página. Mirá las recomendaciones para iPhone más abajo en "Configuración".</p>
@@ -305,10 +326,13 @@
     <div class="text-right shrink-0">
       <p class="text-10 sm:text-xs uppercase tracking-widest opacity-50">Hoy</p>
       <p id="today-date" class="font-mono-num text-xs sm:text-sm"></p>
-      <button onclick="switchTab('config')" class="sync-indicator text-10 sm:text-xs">
+      <button onclick="switchTab('config')" class="sync-indicator text-10 sm:text-xs solo-admin-accion">
         <span id="sync-dot" class="sync-dot sync-off"></span>
         <span id="sync-label">Modo local</span>
       </button>
+      <p id="session-badge" class="text-10 sm:text-xs opacity-60 mt-1 hidden">
+        <span id="session-nombre"></span> · <span class="underline" style="cursor:pointer" onclick="logout()">Cerrar sesión</span>
+      </p>
     </div>
   </div>
 </header>
@@ -330,6 +354,11 @@
 
   <!-- ============ DASHBOARD ============ -->
   <section id="tab-dashboard" class="tab-section">
+
+    <div id="vendedor-quick-actions" class="flex gap-2 flex-wrap mb-5 hidden">
+      <button onclick="openPresupuestoModal()" class="btn-primary">+ Nuevo presupuesto</button>
+      <button onclick="openFileModal()" class="btn-primary" style="background:var(--green)">+ Nueva venta</button>
+    </div>
 
     <h2 class="font-display text-xl mb-3 opacity-80">Estado de las cajas (USD / ARS)</h2>
     <div class="flex flex-wrap gap-4 mb-6">
@@ -1155,6 +1184,37 @@ service cloud.firestore {
       </details>
     </div>
 
+    <div class="bg-white rounded-xl border border-line p-4 mb-6">
+      <h3 class="font-display text-lg mb-2">Usuarios y permisos</h3>
+      <p class="text-sm opacity-70 mb-3">
+        Creá un usuario para cada vendedor. Al ingresar con esas credenciales, solo pueden cargar un presupuesto nuevo o una venta,
+        y ver el Dashboard y las Cuentas corrientes (sin poder editar ni eliminar nada). El resto de las solapas queda oculto.
+        <br><strong>Nota:</strong> esta es una restricción simple pensada para uso diario del equipo, no un sistema de seguridad a prueba de expertos en informática.
+      </p>
+
+      <div class="border border-line rounded-lg p-3 mb-4 bg-paper">
+        <p class="font-display text-sm mb-2">Mi contraseña de administrador</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+          <div><label class="label">Usuario</label><input type="text" id="admin-auth-usuario" class="input"></div>
+          <div><label class="label">Contraseña</label><input type="text" id="admin-auth-clave" class="input"></div>
+        </div>
+        <button onclick="guardarAdminAuth()" class="btn-ghost">Guardar</button>
+        <p id="admin-auth-msg" class="text-sm mt-1" style="color:var(--green)"></p>
+      </div>
+
+      <div class="border border-line rounded-lg p-3 mb-3 bg-paper">
+        <p class="font-display text-sm mb-2">Nuevo vendedor</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+          <div><label class="label">Nombre</label><input type="text" id="nuevo-vendedor-nombre" class="input" placeholder="Ej: Juan Pérez"></div>
+          <div><label class="label">Usuario</label><input type="text" id="nuevo-vendedor-usuario" class="input" placeholder="Ej: juan"></div>
+          <div><label class="label">Contraseña</label><input type="text" id="nuevo-vendedor-clave" class="input"></div>
+        </div>
+        <button onclick="agregarVendedor()" class="btn-primary">Agregar vendedor</button>
+      </div>
+
+      <div id="vendedores-lista" class="space-y-2"></div>
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
       <div class="bg-white rounded-xl border border-line p-4">
         <h3 class="font-display text-lg mb-2">Copia de seguridad manual</h3>
@@ -1530,7 +1590,7 @@ service cloud.firestore {
 
     <div class="flex border border-line rounded-lg overflow-hidden mb-4">
       <button class="toggle-btn active" data-detail-tab="resumen" onclick="switchDetailTab('resumen')">Resumen</button>
-      <button class="toggle-btn" data-detail-tab="cobros" onclick="switchDetailTab('cobros')">Cobros y pagos</button>
+      <button class="toggle-btn solo-admin-accion" data-detail-tab="cobros" onclick="switchDetailTab('cobros')">Cobros y pagos</button>
       <button class="toggle-btn" data-detail-tab="movimientos" onclick="switchDetailTab('movimientos')">Movimientos</button>
     </div>
 
@@ -1540,14 +1600,14 @@ service cloud.firestore {
       <div class="flex flex-wrap items-center gap-2 mb-4 bg-white border border-line rounded-lg p-3">
         <label class="label mb-0">Fecha límite de vencimiento</label>
         <input type="date" id="detail-vencimiento" class="input w-auto">
-        <button type="button" onclick="saveVencimiento()" class="btn-ghost">Guardar</button>
+        <button type="button" onclick="saveVencimiento()" class="btn-ghost solo-admin-accion">Guardar</button>
         <span id="detail-venc-badge"></span>
         <button type="button" id="detail-venc-wa-btn" onclick="enviarAlertaVencimientoWA(currentFileId)" class="btn-ghost hidden">Avisar por WhatsApp</button>
       </div>
 
       <div class="flex gap-2 flex-wrap">
-        <button id="btn-edit-file" class="btn-ghost">Editar datos del file</button>
-        <button id="btn-delete-file" class="btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
+        <button id="btn-edit-file" class="btn-ghost solo-admin-accion">Editar datos del file</button>
+        <button id="btn-delete-file" class="btn-ghost solo-admin-accion" style="color:var(--terracotta); border-color:var(--terracotta)">Eliminar este file</button>
       </div>
     </div>
 
@@ -1615,7 +1675,17 @@ const OLD_STORAGE_KEY = 'bitacora_viajes_v1';
 const FILE_TABLE_COLS = 14;
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
+const ADMIN_AUTH_DEFAULT = { usuario: 'admin', clave: 'ondina2026' };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT) };
+
+/* ====================================================================
+   USUARIOS Y ROLES (vendedores con acceso restringido)
+==================================================================== */
+const SESSION_KEY = 'ondina_session';
+const VENDEDOR_TABS = ['dashboard', 'cuentas'];
+let currentUserRole = null;
+let currentUserNombre = '';
+let currentVendedorId = null;
 let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
@@ -1844,6 +1914,8 @@ function load(){
       state.nextFileNo = data.nextFileNo || 1;
       state.presupuestos = data.presupuestos || [];
       state.gastoCategorias = (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
+      state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
+      state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     return;
   }
@@ -2049,6 +2121,7 @@ document.getElementById('cliente-form').addEventListener('submit', function(e){
    TABS Y SELECTOR DE MONEDA DEL DASHBOARD
 ==================================================================== */
 function switchTab(name){
+  if(currentUserRole === 'vendedor' && !VENDEDOR_TABS.includes(name)) return;
   document.querySelectorAll('.tab-section').forEach(s=>s.classList.add('hidden'));
   document.getElementById('tab-'+name).classList.remove('hidden');
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
@@ -2672,8 +2745,9 @@ function renderHistorial(){
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
+        ${currentUserRole === 'vendedor' ? '' : `
         <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
-        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>`}
       </td>
     </tr>
   `).join('');
@@ -3218,6 +3292,7 @@ function renderAll(){
   renderHistorial();
   renderReportes();
   renderPresupuestos();
+  renderUsuariosConfig();
 }
 
 /* ====================================================================
@@ -3872,8 +3947,9 @@ function renderFileHistory(fileId){
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
+        ${currentUserRole === 'vendedor' ? '' : `
         <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
-        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>`}
       </td>
     </tr>
   `).join('');
@@ -4308,6 +4384,9 @@ function importData(evt){
       state.clientes = Array.isArray(data.clientes) ? data.clientes : [];
       state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
       state.gastoCategorias = (Array.isArray(data.gastoCategorias) && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
+      // Los usuarios/contraseñas no se pisan con la importación salvo que el archivo los incluya explícitamente
+      if(Array.isArray(data.usuarios)) state.usuarios = data.usuarios;
+      if(data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) state.adminAuth = data.adminAuth;
       const maxNo = state.files.reduce((max,f)=>{
         const n = parseInt(f.fileNo, 10);
         return (!isNaN(n) && String(n) === String(f.fileNo)) ? Math.max(max, n) : max;
@@ -4325,7 +4404,10 @@ function importData(evt){
 function resetAll(){
   if(!confirm('¿Seguro que querés borrar TODOS los datos (files, clientes, movimientos y saldos)? Esta acción no se puede deshacer.')) return;
   if(!confirm('Última confirmación: se perderá toda la información guardada localmente. ¿Continuar?')) return;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice() };
+  // Los usuarios y contraseñas NO se borran con este reset (son una cuestión de acceso, no de datos del negocio)
+  const usuariosPrevios = state.usuarios;
+  const adminAuthPrevio = state.adminAuth;
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio };
   save();
 }
 
@@ -4381,8 +4463,14 @@ function initFirebase(){
           state.movs = data.movs || [];
           state.clientes = data.clientes || [];
           state.nextFileNo = data.nextFileNo || 1;
+          state.presupuestos = data.presupuestos || [];
+          state.gastoCategorias = (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
+          state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
+          state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
           persist();
           buildAjusteCajas();
+          renderGastoCategoriaSelect();
+          renderGastoCategoriasConfig();
           renderAll();
         } else {
           syncDocRef.set(cleanForFirestore(state));
@@ -4455,6 +4543,228 @@ function generateSyncConfig(){
   const pin = document.getElementById('gen-pin').value.trim();
   if(pin) out.pin = pin;
   document.getElementById('sync-config-input').value = JSON.stringify(out, null, 2);
+}
+
+/* ====================================================================
+   CONFIGURACIÓN: USUARIOS Y PERMISOS (gestión, solo visible para admin)
+==================================================================== */
+function renderUsuariosConfig(){
+  const usuarioEl = document.getElementById('admin-auth-usuario');
+  const claveEl = document.getElementById('admin-auth-clave');
+  if(usuarioEl && claveEl && document.activeElement !== usuarioEl && document.activeElement !== claveEl){
+    const auth = state.adminAuth || ADMIN_AUTH_DEFAULT;
+    usuarioEl.value = auth.usuario;
+    claveEl.value = auth.clave;
+  }
+  const wrap = document.getElementById('vendedores-lista');
+  if(!wrap) return;
+  if(!state.usuarios || state.usuarios.length === 0){
+    wrap.innerHTML = `<p class="text-sm opacity-50">Todavía no cargaste ningún vendedor.</p>`;
+    return;
+  }
+  wrap.innerHTML = state.usuarios.map(v => `
+    <div class="flex items-center justify-between gap-2 border border-line rounded-lg px-3 py-2 flex-wrap">
+      <div class="text-sm">
+        <strong>${esc(v.nombre || v.usuario)}</strong>
+        <span class="opacity-50"> — usuario: ${esc(v.usuario)} · contraseña: ${esc(v.clave)}</span>
+        ${v.activo === false ? '<span class="badge badge-pendiente" style="margin-left:8px">Desactivado</span>' : ''}
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="editarVendedor(${v.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
+        <button onclick="toggleVendedorActivo(${v.id})" class="text-xs underline opacity-60 hover-opacity-100">${v.activo === false ? 'Activar' : 'Desactivar'}</button>
+        <button onclick="eliminarVendedor(${v.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+}
+function guardarAdminAuth(){
+  const usuario = document.getElementById('admin-auth-usuario').value.trim();
+  const clave = document.getElementById('admin-auth-clave').value;
+  if(!usuario || !clave){ toast('Completá usuario y contraseña.', 'error'); return; }
+  state.adminAuth = { usuario, clave };
+  document.getElementById('admin-auth-msg').textContent = 'Guardado.';
+  setTimeout(()=>{ const m = document.getElementById('admin-auth-msg'); if(m) m.textContent = ''; }, 2500);
+  save();
+}
+function agregarVendedor(){
+  const nombre = document.getElementById('nuevo-vendedor-nombre').value.trim();
+  const usuario = document.getElementById('nuevo-vendedor-usuario').value.trim();
+  const clave = document.getElementById('nuevo-vendedor-clave').value;
+  if(!usuario || !clave){ toast('Completá usuario y contraseña para el vendedor.', 'error'); return; }
+  if(state.usuarios.some(u => u.usuario.toLowerCase() === usuario.toLowerCase())){
+    toast('Ya existe un vendedor con ese usuario.', 'error');
+    return;
+  }
+  state.usuarios.push({ id: Date.now(), nombre, usuario, clave, activo: true });
+  document.getElementById('nuevo-vendedor-nombre').value = '';
+  document.getElementById('nuevo-vendedor-usuario').value = '';
+  document.getElementById('nuevo-vendedor-clave').value = '';
+  toast('Vendedor agregado.', 'success');
+  save();
+}
+function editarVendedor(id){
+  const v = state.usuarios.find(u => u.id === id);
+  if(!v) return;
+  const nombre = prompt('Nombre del vendedor:', v.nombre || '');
+  if(nombre === null) return;
+  const usuario = prompt('Usuario:', v.usuario);
+  if(usuario === null || !usuario.trim()) return;
+  const clave = prompt('Contraseña:', v.clave);
+  if(clave === null || !clave) return;
+  if(state.usuarios.some(u => u.id !== id && u.usuario.toLowerCase() === usuario.trim().toLowerCase())){
+    toast('Ya existe otro vendedor con ese usuario.', 'error');
+    return;
+  }
+  v.nombre = nombre.trim();
+  v.usuario = usuario.trim();
+  v.clave = clave;
+  toast('Vendedor actualizado.', 'success');
+  save();
+}
+function toggleVendedorActivo(id){
+  const v = state.usuarios.find(u => u.id === id);
+  if(!v) return;
+  v.activo = v.activo === false ? true : false;
+  save();
+}
+function eliminarVendedor(id){
+  const v = state.usuarios.find(u => u.id === id);
+  if(!v) return;
+  if(!confirm(`¿Eliminar el usuario "${v.nombre || v.usuario}"? Ya no va a poder ingresar.`)) return;
+  state.usuarios = state.usuarios.filter(u => u.id !== id);
+  toast('Vendedor eliminado.', 'success');
+  save();
+}
+
+/* ====================================================================
+   USUARIOS Y ROLES (login admin / vendedor)
+==================================================================== */
+function showLoginForm(role){
+  document.getElementById('login-choice').classList.add('hidden');
+  document.getElementById('login-form-wrap').classList.remove('hidden');
+  document.getElementById('login-form-wrap').dataset.role = role;
+  document.getElementById('login-form-title').textContent = role === 'admin' ? 'Acceso administrador' : 'Acceso vendedor';
+  document.getElementById('login-usuario').value = '';
+  document.getElementById('login-clave').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-usuario').focus();
+}
+function backToLoginChoice(){
+  document.getElementById('login-form-wrap').classList.add('hidden');
+  document.getElementById('login-choice').classList.remove('hidden');
+  document.getElementById('login-error').textContent = '';
+}
+function attemptLogin(){
+  const role = document.getElementById('login-form-wrap').dataset.role;
+  const usuario = document.getElementById('login-usuario').value.trim();
+  const clave = document.getElementById('login-clave').value;
+  if(!usuario || !clave){
+    document.getElementById('login-error').textContent = 'Completá usuario y contraseña.';
+    return;
+  }
+  if(role === 'admin'){
+    const auth = state.adminAuth || ADMIN_AUTH_DEFAULT;
+    if(usuario !== auth.usuario || clave !== auth.clave){
+      document.getElementById('login-error').textContent = 'Usuario o contraseña incorrectos.';
+      return;
+    }
+    currentUserRole = 'admin';
+    currentUserNombre = 'Administrador';
+    currentVendedorId = null;
+    storageSet(SESSION_KEY, JSON.stringify({ role: 'admin' }));
+  } else {
+    const v = state.usuarios.find(u => u.usuario === usuario && u.clave === clave && u.activo !== false);
+    if(!v){
+      document.getElementById('login-error').textContent = 'Usuario o contraseña incorrectos.';
+      return;
+    }
+    currentUserRole = 'vendedor';
+    currentUserNombre = v.nombre || v.usuario;
+    currentVendedorId = v.id;
+    storageSet(SESSION_KEY, JSON.stringify({ role: 'vendedor', usuario: v.usuario, vendedorId: v.id }));
+  }
+  document.getElementById('login-gate').classList.add('hidden');
+  proceedToPinOrStart();
+}
+function restoreSession(){
+  let raw = null;
+  try{ raw = JSON.parse(storageGet(SESSION_KEY) || 'null'); }catch(e){ raw = null; }
+  if(!raw || !raw.role) return false;
+  if(raw.role === 'admin'){
+    currentUserRole = 'admin';
+    currentUserNombre = 'Administrador';
+    currentVendedorId = null;
+    return true;
+  }
+  if(raw.role === 'vendedor'){
+    const v = state.usuarios.find(u => u.id === raw.vendedorId && u.usuario === raw.usuario && u.activo !== false);
+    if(v){
+      currentUserRole = 'vendedor';
+      currentUserNombre = v.nombre || v.usuario;
+      currentVendedorId = v.id;
+      return true;
+    }
+  }
+  return false;
+}
+function logout(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  storageSet(SESSION_KEY, '');
+  location.reload();
+}
+function applyRolePermissions(){
+  const isVendedor = currentUserRole === 'vendedor';
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    const tab = btn.dataset.tab;
+    btn.style.display = (isVendedor && !VENDEDOR_TABS.includes(tab)) ? 'none' : '';
+  });
+  document.querySelectorAll('.solo-admin-accion').forEach(function(el){
+    el.style.display = isVendedor ? 'none' : '';
+  });
+  const quickActions = document.getElementById('vendedor-quick-actions');
+  if(quickActions) quickActions.classList.toggle('hidden', !isVendedor);
+  const badge = document.getElementById('session-badge');
+  const nombreEl = document.getElementById('session-nombre');
+  if(badge && nombreEl){
+    nombreEl.textContent = currentUserRole === 'admin' ? 'Administrador' : ('Vendedor: ' + currentUserNombre);
+    badge.classList.remove('hidden');
+  }
+  if(isVendedor && !VENDEDOR_TABS.includes(document.querySelector('.tab-section:not(.hidden)') ? document.querySelector('.tab-section:not(.hidden)').id.replace('tab-','') : 'dashboard')){
+    switchTab('dashboard');
+  }
+}
+function hydrateUsuariosFromCloud(callback){
+  let done = false;
+  const finish = function(){ if(done) return; done = true; callback(); };
+  setTimeout(finish, 6000); // por si no hay conexión, no dejamos al vendedor colgado en la pantalla de carga
+  const cfg = getSyncConfig();
+  if(!cfg || !cfg.firebaseConfig || !cfg.firebaseConfig.apiKey || typeof firebase === 'undefined'){
+    finish();
+    return;
+  }
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(cfg.firebaseConfig);
+    firebase.auth().signInAnonymously().then(function(){
+      const db = firebase.firestore();
+      const room = cfg.room || 'principal';
+      db.collection('ondina_travel_sync').doc(room).get().then(function(snap){
+        if(snap.exists){
+          const data = snap.data() || {};
+          if(Array.isArray(data.usuarios)) state.usuarios = data.usuarios;
+          if(data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) state.adminAuth = data.adminAuth;
+        }
+        finish();
+      }).catch(finish);
+    }).catch(finish);
+  }catch(e){ finish(); }
+}
+function proceedToPinOrStart(){
+  const cfg = getSyncConfig();
+  if(cfg && cfg.pin && storageGet(PIN_VERIFIED_KEY) !== cfg.pin){
+    document.getElementById('pin-gate').classList.remove('hidden');
+  } else {
+    startApp();
+  }
 }
 
 /* ====================================================================
@@ -4616,6 +4926,7 @@ async function gdriveSubirBackup(){
 
 function startApp(){
   try{
+  applyRolePermissions();
   document.getElementById('today-date').textContent = new Date().toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
   document.getElementById('gasto-fecha').value = todayStr();
   document.getElementById('ingreso-fecha').value = todayStr();
@@ -4662,12 +4973,15 @@ function startApp(){
   }
 }
 
-const __syncCfg = getSyncConfig();
-if(__syncCfg && __syncCfg.pin && storageGet(PIN_VERIFIED_KEY) !== __syncCfg.pin){
-  document.getElementById('pin-gate').classList.remove('hidden');
-} else {
-  startApp();
-}
+load();
+hydrateUsuariosFromCloud(function(){
+  if(restoreSession()){
+    document.getElementById('login-gate').classList.add('hidden');
+    proceedToPinOrStart();
+  } else {
+    document.getElementById('login-gate').classList.remove('hidden');
+  }
+});
 </script>
 </body>
 </html>
