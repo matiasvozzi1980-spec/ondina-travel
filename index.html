@@ -432,22 +432,16 @@
 
     <div class="flex flex-wrap items-center gap-2 mb-1">
       <h2 class="font-display text-xl opacity-80 mr-auto">Métricas clave</h2>
-      <div class="flex border border-line rounded-lg overflow-hidden">
-        <button class="toggle-btn" data-period="todo" onclick="setDashPeriod('todo')">Todo</button>
-        <button class="toggle-btn active" data-period="mes" onclick="setDashPeriod('mes')">Este mes</button>
-        <button class="toggle-btn" data-period="trim" onclick="setDashPeriod('trim')">Este trimestre</button>
-        <button class="toggle-btn" data-period="anio" onclick="setDashPeriod('anio')">Este año</button>
-        <button class="toggle-btn" data-period="custom" onclick="setDashPeriod('custom')">📅 Personalizado</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs opacity-50">📅</span>
+        <input type="date" id="dash-custom-desde" class="input w-auto" onchange="setDashCustomRange()">
+        <span class="text-xs opacity-50">hasta</span>
+        <input type="date" id="dash-custom-hasta" class="input w-auto" onchange="setDashCustomRange()">
       </div>
       <div class="flex border border-line rounded-lg overflow-hidden">
         <button class="toggle-btn active" data-currency="USD" onclick="setDashCurrency('USD')">USD</button>
         <button class="toggle-btn" data-currency="ARS" onclick="setDashCurrency('ARS')">ARS</button>
       </div>
-    </div>
-    <div id="dash-periodo-custom" class="flex flex-wrap items-center gap-2 mb-2 hidden">
-      <input type="date" id="dash-custom-desde" class="input w-auto" onchange="setDashCustomRange()">
-      <span class="text-xs opacity-50">hasta</span>
-      <input type="date" id="dash-custom-hasta" class="input w-auto" onchange="setDashCustomRange()">
     </div>
     <p id="dash-periodo-label" class="text-xs opacity-60 mb-3"></p>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
@@ -1746,7 +1740,6 @@ let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
-let dashPeriod = 'mes';
 let dashDesdeCustom = null;
 let dashHastaCustom = null;
 let reportesMoneda = 'USD';
@@ -1887,36 +1880,24 @@ function initSortHandlers(){
 
 
 function periodRange(){
-  const hoy = todayStr();
-  const [y, m] = hoy.split('-').map(Number);
-  if(dashPeriod === 'mes'){
-    const desde = `${y}-${String(m).padStart(2,'0')}-01`;
-    const hasta = hoy;
-    return { desde, hasta };
+  return { desde: dashDesdeCustom || null, hasta: dashHastaCustom || null };
+}
+function initDashPeriodo(){
+  if(!dashDesdeCustom || !dashHastaCustom){
+    const hoy = todayStr();
+    const [y, m] = hoy.split('-').map(Number);
+    dashDesdeCustom = `${y}-${String(m).padStart(2,'0')}-01`;
+    dashHastaCustom = hoy;
   }
-  if(dashPeriod === 'trim'){
-    const trimStart = Math.floor((m-1)/3)*3+1;
-    const desde = `${y}-${String(trimStart).padStart(2,'0')}-01`;
-    return { desde, hasta: hoy };
-  }
-  if(dashPeriod === 'anio'){
-    return { desde: `${y}-01-01`, hasta: hoy };
-  }
-  if(dashPeriod === 'custom'){
-    return { desde: dashDesdeCustom || null, hasta: dashHastaCustom || null };
-  }
-  return { desde: null, hasta: null };
+  const desdeEl = document.getElementById('dash-custom-desde');
+  const hastaEl = document.getElementById('dash-custom-hasta');
+  if(desdeEl) desdeEl.value = dashDesdeCustom;
+  if(hastaEl) hastaEl.value = dashHastaCustom;
 }
 function periodLabel(){
   const { desde, hasta } = periodRange();
-  if(dashPeriod === 'mes') return 'Mostrando este mes: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
-  if(dashPeriod === 'trim') return 'Mostrando este trimestre: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
-  if(dashPeriod === 'anio') return 'Mostrando este año: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
-  if(dashPeriod === 'custom'){
-    if(!desde || !hasta) return 'Elegí las dos fechas para ver el rango personalizado.';
-    return 'Mostrando del ' + fmtFechaCorta(desde) + ' al ' + fmtFechaCorta(hasta);
-  }
-  return 'Mostrando todo el historial';
+  if(!desde || !hasta) return 'Elegí las dos fechas para ver el período.';
+  return 'Mostrando del ' + fmtFechaCorta(desde) + ' al ' + fmtFechaCorta(hasta);
 }
 let memoryStore = {};
 let storageOK = true;
@@ -2243,21 +2224,6 @@ function switchTab(name){
 function setDashCurrency(c){
   dashCurrency = c;
   document.querySelectorAll('.toggle-btn[data-currency]').forEach(b=>b.classList.toggle('active', b.dataset.currency===c));
-  renderDashboard();
-}
-function setDashPeriod(p){
-  dashPeriod = p;
-  document.querySelectorAll('.toggle-btn[data-period]').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
-  const customWrap = document.getElementById('dash-periodo-custom');
-  if(customWrap) customWrap.classList.toggle('hidden', p !== 'custom');
-  if(p === 'custom'){
-    const desdeEl = document.getElementById('dash-custom-desde');
-    const hastaEl = document.getElementById('dash-custom-hasta');
-    if(desdeEl && !desdeEl.value) desdeEl.value = dashDesdeCustom || todayStr();
-    if(hastaEl && !hastaEl.value) hastaEl.value = dashHastaCustom || todayStr();
-    dashDesdeCustom = desdeEl ? desdeEl.value : dashDesdeCustom;
-    dashHastaCustom = hastaEl ? hastaEl.value : dashHastaCustom;
-  }
   renderDashboard();
 }
 function setDashCustomRange(){
@@ -5367,6 +5333,7 @@ function startApp(){
   document.getElementById('gasto-fecha').value = todayStr();
   document.getElementById('ingreso-fecha').value = todayStr();
   document.getElementById('pasaje-fecha').value = todayStr();
+  initDashPeriodo();
 
   load();
   sortState = loadSortState();
