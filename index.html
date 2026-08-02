@@ -1718,7 +1718,7 @@ let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: []
    USUARIOS Y ROLES (vendedores con acceso restringido)
 ==================================================================== */
 const SESSION_KEY = 'ondina_session';
-const VENDEDOR_TABS = ['dashboard', 'cuentas'];
+const VENDEDOR_TABS = ['dashboard', 'cuentas', 'presupuestos', 'listado'];
 let currentUserRole = null;
 let currentUserNombre = '';
 let currentVendedorId = null;
@@ -4035,11 +4035,11 @@ function renderPresupuestos(){
       <td class="py-2 px-3 text-right">
         <button onclick="generarPdfPresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">PDF</button>
         ${p.estado === 'convertido'
-          ? (p.fileIdConvertido ? `<button onclick="switchTab('files'); openDetail(${p.fileIdConvertido});" class="text-xs underline opacity-60 hover-opacity-100">Ver file</button>`
+          ? (p.fileIdConvertido ? `<button onclick="switchTab('${currentUserRole === 'vendedor' ? 'listado' : 'files'}'); openDetail(${p.fileIdConvertido});" class="text-xs underline opacity-60 hover-opacity-100">Ver file</button>`
              : '<span class="opacity-40 text-xs">Convertido</span>')
           : `<button onclick="convertirPresupuestoAFile(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Convertir a file</button>
-             <button onclick="openEditPresupuestoModal(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>`}
-        <button onclick="deletePresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+             ${currentUserRole !== 'vendedor' ? `<button onclick="openEditPresupuestoModal(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>` : ''}`}
+        ${currentUserRole !== 'vendedor' ? `<button onclick="deletePresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>` : ''}
       </td>
     </tr>
   `).join('');
