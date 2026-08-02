@@ -37,15 +37,27 @@
   .label{ display:block; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.6; margin-bottom:4px; font-weight:600; }
   .input{ width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:0.9rem; background:#fff; color:var(--ink); }
   .input:focus{ outline:2px solid var(--teal); outline-offset:1px; }
-  .btn-primary{ background:var(--teal); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; transition:background .15s ease; }
-  .btn-primary:hover{ background:var(--teal-dark); }
-  .btn-danger{ background:var(--terracotta); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; }
-  .btn-danger:hover{ opacity:0.9; }
-  .btn-ghost{ border:1px solid var(--line); background:#fff; padding:8px 14px; border-radius:9px; font-size:0.8rem; font-weight:600; }
+  .btn-primary{ background:var(--teal); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; border:1px solid var(--teal); cursor:pointer; transition:background .15s ease, box-shadow .15s ease, transform .1s ease; box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+  .btn-primary:hover{ background:var(--teal-dark); border-color:var(--teal-dark); box-shadow:0 4px 10px rgba(0,0,0,0.16); }
+  .btn-primary:active{ transform:translateY(1px); box-shadow:0 1px 2px rgba(0,0,0,0.1); }
+  .btn-danger{ background:var(--terracotta); color:#fff; padding:10px 18px; border-radius:9px; font-size:0.875rem; font-weight:600; border:1px solid var(--terracotta); cursor:pointer; transition:background .15s ease, box-shadow .15s ease, transform .1s ease; box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+  .btn-danger:hover{ background:#991515; border-color:#991515; box-shadow:0 4px 10px rgba(185,28,28,0.25); }
+  .btn-danger:active{ transform:translateY(1px); box-shadow:0 1px 2px rgba(0,0,0,0.1); }
+  .btn-ghost{ border:1px solid var(--line); background:#fff; padding:8px 14px; border-radius:9px; font-size:0.8rem; font-weight:600; cursor:pointer; transition:background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease; }
+  .btn-ghost:hover{ background:var(--paper); border-color:#cfcfcf; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+  .btn-ghost:active{ transform:translateY(1px); }
+
+  /* Botones de acción chicos (filas de tablas: Editar, Eliminar, PDF, etc.) */
+  .btn-mini{ display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line); background:#fff; color:var(--ink); padding:5px 11px; border-radius:7px; font-size:0.74rem; font-weight:600; cursor:pointer; text-decoration:none; opacity:0.85; transition:background .12s ease, border-color .12s ease, opacity .12s ease, box-shadow .12s ease, transform .1s ease; }
+  .btn-mini:hover{ background:var(--paper); border-color:#c9c9c9; opacity:1; box-shadow:0 2px 5px rgba(0,0,0,0.07); }
+  .btn-mini:active{ transform:translateY(1px); }
+  .btn-mini-danger{ color:var(--terracotta); border-color:rgba(185,28,28,0.3); }
+  .btn-mini-danger:hover{ background:rgba(185,28,28,0.06); border-color:var(--terracotta); }
 
   /* Currency toggle */
-  .toggle-btn{ padding:7px 16px; font-size:0.8rem; font-weight:600; background:#fff; border:none; cursor:pointer; color:var(--ink); }
+  .toggle-btn{ padding:7px 16px; font-size:0.8rem; font-weight:600; background:#fff; border:none; cursor:pointer; color:var(--ink); transition:background .15s ease, color .15s ease; }
   .toggle-btn:not(:last-child){ border-right:1px solid var(--line); }
+  .toggle-btn:hover:not(.active){ background:var(--paper); }
   .toggle-btn.active{ background:var(--teal); color:#fff; }
 
   /* Modal */
@@ -270,7 +282,8 @@
   .imagen-thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
   .imagen-thumb{ position:relative; width:90px; height:90px; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
   .imagen-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .imagen-thumb-remove{ position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.6); color:#fff; font-size:0.8rem; line-height:20px; text-align:center; cursor:pointer; }
+  .imagen-thumb-remove{ position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.6); color:#fff; font-size:0.8rem; line-height:20px; text-align:center; cursor:pointer; transition:background .12s ease, transform .1s ease; }
+  .imagen-thumb-remove:hover{ background:var(--terracotta); transform:scale(1.08); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -2519,8 +2532,8 @@ function renderGastoCategoriasConfig(){
     <div class="flex items-center justify-between gap-2 border border-line rounded-lg px-3 py-2">
       <span class="text-sm">${esc(c)}</span>
       <div class="flex gap-2 shrink-0">
-        <button onclick="renombrarGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100">Renombrar</button>
-        <button onclick="eliminarGastoCategoria(${i})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+        <button onclick="renombrarGastoCategoria(${i})" class="btn-mini">Renombrar</button>
+        <button onclick="eliminarGastoCategoria(${i})" class="btn-mini btn-mini-danger">Eliminar</button>
       </div>
     </div>
   `).join('');
@@ -2780,7 +2793,7 @@ function renderClientes(){
         <td class="py-2 px-3">${esc(c.telefono || '—')}</td>
         <td class="py-2 px-3 font-mono-num text-center">${c._nfiles}</td>
         <td class="py-2 px-3 font-mono-num text-right" style="color:${(pendUSD>0||pendARS>0)?'var(--terracotta)':'inherit'}">${pendTxt}</td>
-        <td class="py-2 px-3 text-right"><button onclick="openEditClienteModal(${c.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button></td>
+        <td class="py-2 px-3 text-right"><button onclick="openEditClienteModal(${c.id})" class="btn-mini">Editar</button></td>
       </tr>`;
   }).join('');
 }
@@ -2813,10 +2826,10 @@ function renderHistorial(){
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
-        <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
+        <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
         ${currentUserRole === 'vendedor' ? '' : `
-        <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
-        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>`}
+        <button onclick="openEditMovModal(${m.id})" class="btn-mini">Editar</button>
+        <button onclick="deleteMov(${m.id})" class="btn-mini btn-mini-danger">Eliminar</button>`}
       </td>
     </tr>
   `).join('');
@@ -2847,7 +2860,7 @@ function waRenderLista(){
       '<div class="flex-1 min-w-0"><p class="text-sm font-semibold">' + esc(c.nombre) + '</p>' +
       '<p class="text-xs opacity-50 font-mono-num">+' + esc(c.numero) + '</p></div>' +
       '<button onclick="waEnviarNumero(\'' + c.numero + '\')" class="btn-primary shrink-0" style="background:#25D366;padding:6px 12px;font-size:0.75rem;">Enviar</button>' +
-      '<button onclick="waEliminarContacto(' + i + ')" class="text-xs underline opacity-50 shrink-0" style="color:var(--terracotta)">&#x2715;</button>' +
+      '<button onclick="waEliminarContacto(' + i + ')" class="btn-mini btn-mini-danger" style="padding:3px 8px;">&#x2715;</button>' +
       '</div>';
   }).join('');
 }
@@ -3514,8 +3527,8 @@ function renderMayoristasConfig(){
     <div class="flex items-center justify-between gap-2 border border-line rounded-lg px-3 py-2">
       <span class="text-sm">${esc(m)}</span>
       <div class="flex gap-2 shrink-0">
-        <button onclick="renombrarMayorista(${i})" class="text-xs underline opacity-60 hover-opacity-100">Renombrar</button>
-        <button onclick="eliminarMayorista(${i})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+        <button onclick="renombrarMayorista(${i})" class="btn-mini">Renombrar</button>
+        <button onclick="eliminarMayorista(${i})" class="btn-mini btn-mini-danger">Eliminar</button>
       </div>
     </div>
   `).join('');
@@ -4033,13 +4046,13 @@ function renderPresupuestos(){
         : '<span class="badge badge-pendiente" style="background:#E0E7FF; color:#3730A3">Pendiente</span>'}</td>
       <td class="py-2 px-3">${esc(p.vendedorNombre || '—')}</td>
       <td class="py-2 px-3 text-right">
-        <button onclick="generarPdfPresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">PDF</button>
+        <button onclick="generarPdfPresupuesto(${p.id})" class="btn-mini">PDF</button>
         ${p.estado === 'convertido'
-          ? (p.fileIdConvertido ? `<button onclick="switchTab('${currentUserRole === 'vendedor' ? 'listado' : 'files'}'); openDetail(${p.fileIdConvertido});" class="text-xs underline opacity-60 hover-opacity-100">Ver file</button>`
+          ? (p.fileIdConvertido ? `<button onclick="switchTab('${currentUserRole === 'vendedor' ? 'listado' : 'files'}'); openDetail(${p.fileIdConvertido});" class="btn-mini">Ver file</button>`
              : '<span class="opacity-40 text-xs">Convertido</span>')
-          : `<button onclick="convertirPresupuestoAFile(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Convertir a file</button>
-             ${currentUserRole !== 'vendedor' ? `<button onclick="openEditPresupuestoModal(${p.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>` : ''}`}
-        ${currentUserRole !== 'vendedor' ? `<button onclick="deletePresupuesto(${p.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>` : ''}
+          : `<button onclick="convertirPresupuestoAFile(${p.id})" class="btn-mini">Convertir a file</button>
+             ${currentUserRole !== 'vendedor' ? `<button onclick="openEditPresupuestoModal(${p.id})" class="btn-mini">Editar</button>` : ''}`}
+        ${currentUserRole !== 'vendedor' ? `<button onclick="deletePresupuesto(${p.id})" class="btn-mini btn-mini-danger">Eliminar</button>` : ''}
       </td>
     </tr>
   `).join('');
@@ -4300,10 +4313,10 @@ function renderFileHistory(fileId){
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
       <td class="py-2 px-3 text-right">
-        <button onclick="generarComprobante(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Comprobante</button>
+        <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
         ${currentUserRole === 'vendedor' ? '' : `
-        <button onclick="openEditMovModal(${m.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
-        <button onclick="deleteMov(${m.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>`}
+        <button onclick="openEditMovModal(${m.id})" class="btn-mini">Editar</button>
+        <button onclick="deleteMov(${m.id})" class="btn-mini btn-mini-danger">Eliminar</button>`}
       </td>
     </tr>
   `).join('');
@@ -4951,9 +4964,9 @@ function renderUsuariosConfig(){
         ${v.activo === false ? '<span class="badge badge-pendiente" style="margin-left:8px">Desactivado</span>' : ''}
       </div>
       <div class="flex gap-2 shrink-0">
-        <button onclick="editarVendedor(${v.id})" class="text-xs underline opacity-60 hover-opacity-100">Editar</button>
-        <button onclick="toggleVendedorActivo(${v.id})" class="text-xs underline opacity-60 hover-opacity-100">${v.activo === false ? 'Activar' : 'Desactivar'}</button>
-        <button onclick="eliminarVendedor(${v.id})" class="text-xs underline opacity-60 hover-opacity-100" style="color:var(--terracotta)">Eliminar</button>
+        <button onclick="editarVendedor(${v.id})" class="btn-mini">Editar</button>
+        <button onclick="toggleVendedorActivo(${v.id})" class="btn-mini">${v.activo === false ? 'Activar' : 'Desactivar'}</button>
+        <button onclick="eliminarVendedor(${v.id})" class="btn-mini btn-mini-danger">Eliminar</button>
       </div>
     </div>
   `).join('');
