@@ -2981,8 +2981,8 @@ async function generarPdfPresupuesto(id){
     : '<p style="font-size:13px;opacity:0.5;margin:0;">—</p>';
 
   const imagenesHtml = (p.imagenes && p.imagenes.length)
-    ? '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">' +
-        p.imagenes.map(function(im){ var src = (im && im.dataUrl) ? im.dataUrl : im; return '<img src="'+src+'" style="max-width:100%;width:520px;border:1px solid #E5E5E5;border-radius:6px;display:block;">'; }).join('') +
+    ? '<div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;margin-bottom:16px;">' +
+        p.imagenes.map(function(im){ var src = (im && im.dataUrl) ? im.dataUrl : im; return '<img src="'+src+'" style="max-width:100%;width:520px;border:1px solid #E5E5E5;border-radius:6px;display:block;margin:0 auto;">'; }).join('') +
       '</div>'
     : '';
 
@@ -2991,7 +2991,7 @@ async function generarPdfPresupuesto(id){
   contenedor.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #161616;padding-bottom:18px;margin-bottom:24px;">' +
       '<div style="display:flex;align-items:center;gap:14px;">' +
-        (logoSrc ? '<img src="'+logoSrc+'" style="height:48px;">' : '') +
+        (logoSrc ? '<img src="'+logoSrc+'" style="height:80px;">' : '') +
         '<div><div style="font-family:Georgia,serif;font-size:24px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Ondina Travel</div>' +
         '<div style="font-size:11px;color:#6B7280;letter-spacing:0.15em;text-transform:uppercase;margin-top:3px;">Propuesta de viaje</div></div>' +
       '</div>' +
@@ -3009,9 +3009,9 @@ async function generarPdfPresupuesto(id){
     '</table>' +
 
     '<div style="margin-bottom:22px;">' +
+      imagenesHtml +
       '<p style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Detalle / condiciones</p>' +
       notasHtml +
-      imagenesHtml +
     '</div>' +
 
     '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;background:#FAFAF9;">' +
