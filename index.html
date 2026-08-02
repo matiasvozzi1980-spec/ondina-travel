@@ -430,19 +430,26 @@
       <div id="alertas-wrap"></div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div class="flex flex-wrap items-center gap-2 mb-1">
       <h2 class="font-display text-xl opacity-80 mr-auto">Métricas clave</h2>
       <div class="flex border border-line rounded-lg overflow-hidden">
-        <button class="toggle-btn active" data-period="todo" onclick="setDashPeriod('todo')">Todo</button>
-        <button class="toggle-btn" data-period="mes" onclick="setDashPeriod('mes')">Este mes</button>
+        <button class="toggle-btn" data-period="todo" onclick="setDashPeriod('todo')">Todo</button>
+        <button class="toggle-btn active" data-period="mes" onclick="setDashPeriod('mes')">Este mes</button>
         <button class="toggle-btn" data-period="trim" onclick="setDashPeriod('trim')">Este trimestre</button>
         <button class="toggle-btn" data-period="anio" onclick="setDashPeriod('anio')">Este año</button>
+        <button class="toggle-btn" data-period="custom" onclick="setDashPeriod('custom')">📅 Personalizado</button>
       </div>
       <div class="flex border border-line rounded-lg overflow-hidden">
         <button class="toggle-btn active" data-currency="USD" onclick="setDashCurrency('USD')">USD</button>
         <button class="toggle-btn" data-currency="ARS" onclick="setDashCurrency('ARS')">ARS</button>
       </div>
     </div>
+    <div id="dash-periodo-custom" class="flex flex-wrap items-center gap-2 mb-2 hidden">
+      <input type="date" id="dash-custom-desde" class="input w-auto" onchange="setDashCustomRange()">
+      <span class="text-xs opacity-50">hasta</span>
+      <input type="date" id="dash-custom-hasta" class="input w-auto" onchange="setDashCustomRange()">
+    </div>
+    <p id="dash-periodo-label" class="text-xs opacity-60 mb-3"></p>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
       <div class="bg-white rounded-xl border border-line p-4">
         <p class="text-xs uppercase tracking-widest opacity-50">Total ventas</p>
@@ -1739,7 +1746,9 @@ let currentFileId = null;
 let editingFileId = null;
 let selectedListadoId = null;
 let dashCurrency = 'USD';
-let dashPeriod = 'todo';
+let dashPeriod = 'mes';
+let dashDesdeCustom = null;
+let dashHastaCustom = null;
 let reportesMoneda = 'USD';
 let editingPresupuestoId = null;
 let presupuestoParaConvertir = null;
@@ -1893,7 +1902,21 @@ function periodRange(){
   if(dashPeriod === 'anio'){
     return { desde: `${y}-01-01`, hasta: hoy };
   }
+  if(dashPeriod === 'custom'){
+    return { desde: dashDesdeCustom || null, hasta: dashHastaCustom || null };
+  }
   return { desde: null, hasta: null };
+}
+function periodLabel(){
+  const { desde, hasta } = periodRange();
+  if(dashPeriod === 'mes') return 'Mostrando este mes: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
+  if(dashPeriod === 'trim') return 'Mostrando este trimestre: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
+  if(dashPeriod === 'anio') return 'Mostrando este año: ' + fmtFechaCorta(desde) + ' – ' + fmtFechaCorta(hasta);
+  if(dashPeriod === 'custom'){
+    if(!desde || !hasta) return 'Elegí las dos fechas para ver el rango personalizado.';
+    return 'Mostrando del ' + fmtFechaCorta(desde) + ' al ' + fmtFechaCorta(hasta);
+  }
+  return 'Mostrando todo el historial';
 }
 let memoryStore = {};
 let storageOK = true;
@@ -2225,6 +2248,23 @@ function setDashCurrency(c){
 function setDashPeriod(p){
   dashPeriod = p;
   document.querySelectorAll('.toggle-btn[data-period]').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
+  const customWrap = document.getElementById('dash-periodo-custom');
+  if(customWrap) customWrap.classList.toggle('hidden', p !== 'custom');
+  if(p === 'custom'){
+    const desdeEl = document.getElementById('dash-custom-desde');
+    const hastaEl = document.getElementById('dash-custom-hasta');
+    if(desdeEl && !desdeEl.value) desdeEl.value = dashDesdeCustom || todayStr();
+    if(hastaEl && !hastaEl.value) hastaEl.value = dashHastaCustom || todayStr();
+    dashDesdeCustom = desdeEl ? desdeEl.value : dashDesdeCustom;
+    dashHastaCustom = hastaEl ? hastaEl.value : dashHastaCustom;
+  }
+  renderDashboard();
+}
+function setDashCustomRange(){
+  const desdeEl = document.getElementById('dash-custom-desde');
+  const hastaEl = document.getElementById('dash-custom-hasta');
+  dashDesdeCustom = desdeEl ? desdeEl.value : null;
+  dashHastaCustom = hastaEl ? hastaEl.value : null;
   renderDashboard();
 }
 
@@ -2417,6 +2457,8 @@ function renderDashboard(){
   document.getElementById('m-comisiones').textContent = fmt(t.comisiones, dashCurrency);
   document.getElementById('m-porcobrar').textContent = fmt(t.porCobrar, dashCurrency);
   document.getElementById('m-porpagar').textContent = fmt(t.porPagar, dashCurrency);
+  const periodoLabelEl = document.getElementById('dash-periodo-label');
+  if(periodoLabelEl) periodoLabelEl.textContent = periodLabel();
 
   renderAlertas();
   renderProyeccionCobros();
