@@ -3008,15 +3008,15 @@ async function generarPdfPresupuesto(id){
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
     '</table>' +
 
-    '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;">' +
-      '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
-      '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
-    '</div>' +
-
     '<div style="margin-bottom:22px;">' +
       '<p style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Detalle / condiciones</p>' +
       notasHtml +
       imagenesHtml +
+    '</div>' +
+
+    '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;background:#FAFAF9;">' +
+      '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
+      '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
     '</div>' +
 
     '<p style="font-size:10px;color:#9CA3AF;margin-top:30px;text-align:center;border-top:1px solid #E5E5E5;padding-top:14px;">Presupuesto sujeto a disponibilidad y confirmación al momento de la reserva · Ondina Travel</p>';
