@@ -2027,6 +2027,15 @@ function esc(s){
 function todayStr(){
   return new Date().toISOString().slice(0,10);
 }
+function fmtFechaCorta(iso){
+  // Convierte 'AAAA-MM-DD' a 'DD/MM/AAAA' solo para mostrar en pantalla.
+  // El dato se sigue guardando en formato ISO (para ordenar y comparar bien).
+  if(!iso) return '';
+  const partes = String(iso).split('-');
+  if(partes.length !== 3) return esc(iso);
+  const [y, m, d] = partes;
+  return esc(d + '/' + m + '/' + y);
+}
 function clienteNombreCompleto(f){
   return [f.clienteNombre, f.clienteApellido].filter(Boolean).join(' ') || '—';
 }
@@ -2079,7 +2088,7 @@ function vencimientoInfo(f){
 function vencimientoCellHtml(f){
   if(!f.vencimiento) return `<span class="text-xs opacity-40">—</span>`;
   const info = vencimientoInfo(f);
-  const fechaTxt = esc(f.vencimiento);
+  const fechaTxt = fmtFechaCorta(f.vencimiento);
   if(info.estado === 'vencido') return `<span class="badge badge-pendiente" title="Venció hace ${Math.abs(info.dias)} día(s)">${fechaTxt} · vencido</span>`;
   if(info.estado === 'porvencer') return `<span class="badge badge-parcial" title="Vence en ${info.dias} día(s)">${fechaTxt} · ${info.dias}d</span>`;
   return `<span class="text-xs opacity-60">${fechaTxt}</span>`;
@@ -2315,7 +2324,7 @@ function renderAgingReport(){
       <td class="py-2 px-3">${esc(f.fileNo)}</td>
       <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
       <td class="py-2 px-3">${esc(f.destino)}</td>
-      <td class="py-2 px-3">${f.fecha}</td>
+      <td class="py-2 px-3">${fmtFechaCorta(f.fecha)}</td>
       <td class="py-2 px-3 text-center">${dias}</td>
       <td class="py-2 px-3">${buckets[key].label}</td>
       <td class="py-2 px-3 text-right font-mono-num">${fmt(f.saldoCliente, reportesMoneda)}</td>
@@ -2451,7 +2460,7 @@ function renderProyeccionCobros(){
       <td class="py-2 px-3">${esc(f.fileNo)}</td>
       <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
       <td class="py-2 px-3">${esc(f.destino)}</td>
-      <td class="py-2 px-3">${f.vencimiento ? esc(f.vencimiento) : '<span class="opacity-40">—</span>'}</td>
+      <td class="py-2 px-3">${f.vencimiento ? fmtFechaCorta(f.vencimiento) : '<span class="opacity-40">—</span>'}</td>
       <td class="py-2 px-3 text-center">${dias === null ? '—' : dias}</td>
       <td class="py-2 px-3">${buckets[key].label}</td>
       <td class="py-2 px-3 text-right font-mono-num">${fmt(f.saldoCliente, dashCurrency)}</td>
@@ -2483,7 +2492,7 @@ function renderAlertas(){
     return `<div class="flex justify-between items-center gap-2 py-2 border-b border-line last-border-0 cursor-pointer" onclick="switchTab('files');openDetail(${f.id})">
       <div>
         <p class="text-sm font-semibold">#${f.fileNo} — ${esc(clienteNombreCompleto(f))} <span class="opacity-50">(${esc(f.destino)})</span></p>
-        <p class="text-xs opacity-60">${detalles.join(' · ')} · vence ${esc(f.vencimiento)}</p>
+        <p class="text-xs opacity-60">${detalles.join(' · ')} · vence ${fmtFechaCorta(f.vencimiento)}</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <button onclick="event.stopPropagation(); enviarAlertaVencimientoWA(${f.id})" class="btn-ghost" style="padding:5px 10px; font-size:0.75rem;">WhatsApp</button>
@@ -2572,7 +2581,7 @@ function mensajeAlertaVencimiento(f){
   const detalles = [];
   if(f.saldoCliente > 0) detalles.push(`Saldo pendiente: ${fmt(f.saldoCliente, f.moneda)}`);
   const detalleTxt = detalles.length ? ('\n' + detalles.join('\n')) : '';
-  return `Hola ${f.clienteNombre || ''}! Te escribimos de Ondina Travel por tu file #${f.fileNo} (${f.destino}), que ${estadoTxt} (${f.vencimiento || '—'}).${detalleTxt}\n\n¿Podemos coordinar el pago?`;
+  return `Hola ${f.clienteNombre || ''}! Te escribimos de Ondina Travel por tu file #${f.fileNo} (${f.destino}), que ${estadoTxt} (${f.vencimiento ? fmtFechaCorta(f.vencimiento) : '—'}).${detalleTxt}\n\n¿Podemos coordinar el pago?`;
 }
 function enviarAlertaVencimientoWA(fileId){
   const f = state.files.find(x=>x.id===fileId);
@@ -2603,7 +2612,7 @@ function fileRowHtml(f, context){
   return `
     <tr class="${rowClass}" id="listado-row-${f.id}" onclick="${onclick}">
       <td class="py-2 px-3 font-mono-num">${f.fileNo}</td>
-      <td class="py-2 px-3">${esc(f.fecha)}</td>
+      <td class="py-2 px-3">${fmtFechaCorta(f.fecha)}</td>
       <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
       <td class="py-2 px-3">${esc(f.destino)}</td>
       <td class="py-2 px-3">${esc(f.mayorista || '—')}</td>
@@ -2767,7 +2776,7 @@ function renderClientes(){
         <td class="py-2 px-3 cursor-pointer" onclick="document.getElementById('listado-buscar').value=${JSON.stringify(c.nombre)}; switchTab('listado'); renderListado();">${esc(c.nombre)}</td>
         <td class="py-2 px-3">${esc(c.apellido || '—')}</td>
         <td class="py-2 px-3 font-mono-num">${esc(c.dni || '—')}</td>
-        <td class="py-2 px-3">${esc(c.nacimiento || '—')}</td>
+        <td class="py-2 px-3">${c.nacimiento ? fmtFechaCorta(c.nacimiento) : '—'}</td>
         <td class="py-2 px-3">${esc(c.telefono || '—')}</td>
         <td class="py-2 px-3 font-mono-num text-center">${c._nfiles}</td>
         <td class="py-2 px-3 font-mono-num text-right" style="color:${(pendUSD>0||pendARS>0)?'var(--terracotta)':'inherit'}">${pendTxt}</td>
@@ -2796,7 +2805,7 @@ function renderHistorial(){
   }
   tbody.innerHTML = movs.map(m=>`
     <tr class="border-b border-line">
-      <td class="py-2 px-3">${esc(m.fecha)}</td>
+      <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
       <td class="py-2 px-3">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#FEF3C7; color:#92400E">${esc(m.categoriaGasto)}</span>` : ''}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
@@ -2901,7 +2910,7 @@ async function generarComprobante(movId){
   const emitido = ahora.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
 
   const filas = [];
-  filas.push(['Fecha del movimiento', esc(m.fecha)]);
+  filas.push(['Fecha del movimiento', fmtFechaCorta(m.fecha)]);
   if(f) filas.push(['File', '#' + esc(f.fileNo)]);
   if(f) filas.push(['Cliente', esc(clienteNombreCompleto(f))]);
   filas.push(['Concepto', esc(m.concepto)]);
@@ -2996,7 +3005,7 @@ async function generarPdfPresupuesto(id){
     '<table style="width:100%;border-collapse:collapse;margin-bottom:22px;">' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
-      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + esc(p.fecha) + '</td></tr>' +
+      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
     '</table>' +
 
     '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;">' +
@@ -3746,7 +3755,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   // Mejora 5: validación de fecha de vencimiento coherente
   if(vencimiento && vencimiento < fecha){
     if(!confirm(
-      `⚠️ La fecha de vencimiento (${vencimiento}) es anterior a la fecha del file (${fecha}).\n\n` +
+      `⚠️ La fecha de vencimiento (${fmtFechaCorta(vencimiento)}) es anterior a la fecha del file (${fmtFechaCorta(fecha)}).\n\n` +
       `¿Querés guardar el file de todas formas?`
     )) return;
   }
@@ -4011,7 +4020,7 @@ function renderPresupuestos(){
   tbody.innerHTML = rows.map(p => `
     <tr class="border-b border-line last-border-0">
       <td class="py-2 px-3 font-mono-num">${p.presupuestoNo || '—'}</td>
-      <td class="py-2 px-3">${esc(p.fecha)}</td>
+      <td class="py-2 px-3">${fmtFechaCorta(p.fecha)}</td>
       <td class="py-2 px-3">${esc([p.clienteNombre, p.clienteApellido].filter(Boolean).join(' '))}</td>
       <td class="py-2 px-3">${esc(p.destino)}</td>
       <td class="py-2 px-3">${esc(p.mayorista || '—')}</td>
@@ -4080,7 +4089,7 @@ function openDetail(id){
   const cobrado = f.precioVenta - f.saldoCliente;
   const pagado = f.costoNeto - f.saldoMayorista;
   document.getElementById('detail-info').innerHTML = `
-    <div><p class="label">Fecha</p><p>${esc(f.fecha)}</p></div>
+    <div><p class="label">Fecha</p><p>${fmtFechaCorta(f.fecha)}</p></div>
     <div><p class="label">Destino</p><p>${esc(f.destino)}</p></div>
     <div><p class="label">Mayorista</p><p>${esc(f.mayorista || '—')}</p></div>
     <div><p class="label">Vendedor</p><p>${esc(f.vendedorNombre || '—')}</p></div>
@@ -4093,7 +4102,7 @@ function openDetail(id){
     <div><p class="label">Cliente</p><p>${esc(clienteNombreCompleto(f))}</p></div>
     <div><p class="label">DNI</p><p>${esc(f.clienteDni || '—')}</p></div>
     <div><p class="label">Teléfono</p><p>${esc(f.clienteTelefono || '—')}</p></div>
-    <div><p class="label">Fecha de nacimiento</p><p>${esc(f.clienteNacimiento || '—')}</p></div>
+    <div><p class="label">Fecha de nacimiento</p><p>${f.clienteNacimiento ? fmtFechaCorta(f.clienteNacimiento) : '—'}</p></div>
     <div class="sm:col-span-3"><hr class="border-line my-1"></div>
     <div><p class="label">Cobrado al cliente</p><p class="font-mono-num">${fmt(cobrado, f.moneda)}</p></div>
     <div><p class="label">Saldo pendiente cliente</p><p class="font-mono-num font-semibold" style="color:${f.saldoCliente>0?'var(--terracotta)':'var(--green)'}">${fmt(f.saldoCliente, f.moneda)}</p></div>
@@ -4286,7 +4295,7 @@ function renderFileHistory(fileId){
   }
   tbody.innerHTML = movs.map(m=>`
     <tr class="border-b border-line">
-      <td class="py-2 px-3">${esc(m.fecha)}</td>
+      <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3">${esc(m.concepto)}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
