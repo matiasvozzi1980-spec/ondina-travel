@@ -1948,10 +1948,23 @@ function storageSet(key, value){
 /* ====================================================================
    PERSISTENCIA (con migración desde la versión anterior)
 ==================================================================== */
+function redondear2(n){
+  // Evita arrastrar errores de coma flotante (ej: 0.1 + 0.2 = 0.30000000000000004)
+  // que hacían que un saldo "en $0" quedara guardado como 0.00000000001 y
+  // el estado se mostrara como "Parcial" en vez de "Pagado".
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+function sanearSaldosFiles(){
+  state.files.forEach(f=>{
+    f.saldoCliente = redondear2(f.saldoCliente);
+    f.saldoMayorista = redondear2(f.saldoMayorista);
+  });
+}
 function persist(){
   storageSet(STORAGE_KEY, JSON.stringify(state));
 }
 function save(){
+  sanearSaldosFiles();
   persist();
   renderAll();
   pushToCloud();
@@ -1972,6 +1985,7 @@ function load(){
       state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
       state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
+    sanearSaldosFiles();
     seedMayoristasSiVacio();
     seedPresupuestoNumerosSiFaltan();
     return;
@@ -2002,6 +2016,7 @@ function load(){
       persist();
     }catch(e){ console.error('No se pudo migrar la información anterior', e); }
   }
+  sanearSaldosFiles();
   seedMayoristasSiVacio();
   seedPresupuestoNumerosSiFaltan();
 }
@@ -4866,6 +4881,7 @@ function initFirebase(){
           state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
           state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
           state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
+          sanearSaldosFiles();
           seedMayoristasSiVacio();
           seedPresupuestoNumerosSiFaltan();
           persist();
