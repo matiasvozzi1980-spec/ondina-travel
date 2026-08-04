@@ -598,7 +598,6 @@
           <option value="pendiente">Pendiente</option>
           <option value="parcial">Parcial</option>
           <option value="pagado">Pagado</option>
-          <option value="favor">Saldo a favor</option>
         </select>
       </div>
       <div>
@@ -2664,8 +2663,8 @@ function fileRowHtml(f, context){
       <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:var(--gold)'}">${fmt(f.comision, f.moneda)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoCliente>0?'var(--terracotta)':'inherit')}">${fmt(f.saldoCliente, f.moneda)}</td>
       <td class="py-2 px-3">${estadoBadge(f.saldoCliente, f.precioVenta)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoMayorista>0?'var(--gold)':(f.saldoMayorista<0?'#3730A3':'inherit'))}">${f.saldoMayorista<0 ? 'A favor ' + fmt(-f.saldoMayorista, f.moneda) : fmt(f.saldoMayorista, f.moneda)}</td>
-      <td class="py-2 px-3">${estadoBadge(f.saldoMayorista, f.costoNeto)}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoMayorista>0?'var(--gold)':'inherit')}">${fmt(Math.max(f.saldoMayorista,0), f.moneda)}</td>
+      <td class="py-2 px-3">${estadoBadge(Math.max(f.saldoMayorista,0), f.costoNeto)}</td>
       <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
     </tr>`;
 }
@@ -3280,9 +3279,10 @@ function renderCuentas(){
   }
 
   // ---- MAYORISTAS por file ----
-  let mayoristaFiles = filtroEstado === 'pendientes'
-    ? files.filter(f=>f.saldoMayorista !== 0)
-    : files;
+  // Esta tabla es "lo que le debemos a los mayoristas": nunca muestra saldos a favor
+  // (files donde pagamos de más). Ese excedente se gestiona aparte, en "Saldo a favor".
+  let mayoristaFiles = files.filter(f=>f.saldoMayorista >= 0);
+  if(filtroEstado === 'pendientes') mayoristaFiles = mayoristaFiles.filter(f=>f.saldoMayorista > 0);
   mayoristaFiles = mayoristaFiles.sort((a,b)=> b.saldoMayorista - a.saldoMayorista);
   mayoristaFiles = sortRows(mayoristaFiles, 'cc-mayoristas');
   const tbodyM = document.getElementById('cc-mayoristas-tbody');
@@ -3294,10 +3294,7 @@ function renderCuentas(){
       const pct = f.costoNeto > 0 ? Math.round(pagado / f.costoNeto * 100) : 100;
       const barColor = pct >= 100 ? '#15803D' : pct > 0 ? '#B45309' : '#B91C1C';
       let estadoStr, estadoColor, saldoTxt;
-      if(f.saldoMayorista < 0){
-        estadoStr = 'A favor'; estadoColor = '#3730A3';
-        saldoTxt = `<span style="color:#3730A3">A favor ${fmt(-f.saldoMayorista, f.moneda)}</span>`;
-      } else if(f.saldoMayorista === 0){
+      if(f.saldoMayorista === 0){
         estadoStr = 'Pagado'; estadoColor = '#15803D';
         saldoTxt = `<span style="color:#15803D">${fmt(0, f.moneda)}</span>`;
       } else if(pagado > 0){
@@ -4150,8 +4147,8 @@ function openDetail(id){
     <div><p class="label">Saldo pendiente cliente</p><p class="font-mono-num font-semibold" style="color:${f.saldoCliente>0?'var(--terracotta)':'var(--green)'}">${fmt(f.saldoCliente, f.moneda)}</p></div>
     <div><p class="label">Estado cliente</p>${estadoBadge(f.saldoCliente, f.precioVenta)}</div>
     <div><p class="label">Pagado al mayorista</p><p class="font-mono-num">${fmt(pagado, f.moneda)}</p></div>
-    <div><p class="label">Saldo pendiente mayorista</p><p class="font-mono-num font-semibold" style="color:${f.saldoMayorista>0?'var(--gold)':(f.saldoMayorista<0?'var(--slate)':'var(--green)')}">${f.saldoMayorista<0 ? 'A favor ' + fmt(-f.saldoMayorista, f.moneda) : fmt(f.saldoMayorista, f.moneda)}</p></div>
-    <div><p class="label">Estado mayorista</p>${f.saldoMayorista<0 ? '<span class="badge" style="background:#E0E7FF; color:#3730A3">Saldo a favor</span>' : estadoBadge(f.saldoMayorista, f.costoNeto)}</div>
+    <div><p class="label">Saldo pendiente mayorista</p><p class="font-mono-num font-semibold" style="color:${f.saldoMayorista>0?'var(--gold)':'var(--green)'}">${fmt(Math.max(f.saldoMayorista,0), f.moneda)}</p></div>
+    <div><p class="label">Estado mayorista</p>${estadoBadge(Math.max(f.saldoMayorista,0), f.costoNeto)}</div>
   `;
 
   document.getElementById('detail-vencimiento').value = f.vencimiento || '';
