@@ -794,6 +794,21 @@
         Saldos a favor con mayoristas
       </h3>
       <p class="text-sm opacity-60 mb-3">Créditos acumulados — se pueden aplicar al próximo file con ese mayorista. Tocá "Editar" para ajustar el saldo de un file puntual.</p>
+      <div class="flex flex-wrap items-end gap-2 mb-3 bg-white border border-line rounded-xl p-3">
+        <div>
+          <label class="label">Mayorista</label>
+          <select id="favor-nuevo-mayorista" class="input" onchange="onMayoristaSelectChange(this)"></select>
+        </div>
+        <div>
+          <label class="label">Moneda</label>
+          <select id="favor-nuevo-moneda" class="input">
+            <option value="USD">USD</option>
+            <option value="ARS">ARS</option>
+          </select>
+        </div>
+        <button type="button" onclick="abrirFavorNuevo()" class="btn-ghost">+ Cargar saldo a favor</button>
+        <span class="text-xs opacity-50">Para cargar un crédito con un mayorista que todavía no tiene ningún saldo a favor registrado (no hace falta que esté ligado a un file).</span>
+      </div>
       <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
         <table class="w-full text-sm">
           <thead>
@@ -823,8 +838,8 @@
       <!-- Ajuste global -->
       <div class="bg-white border border-line rounded-xl p-4 mb-4">
         <h4 class="font-display text-lg mb-2">Ajuste global</h4>
-        <p class="text-sm opacity-60 mb-3">Registrá un crédito nuevo o reducí el saldo a favor total. El monto se distribuye entre los files de este mayorista (de más antiguo a más reciente).</p>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+        <p class="text-sm opacity-60 mb-3">Registrá un crédito directo (no ligado a ningún file) o reducí el saldo a favor total. Al reducir, se consume primero el crédito más antiguo (sea de un file o directo).</p>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>
             <label class="label">Tipo</label>
             <select id="favor-ajuste-tipo" class="input">
@@ -837,20 +852,24 @@
             <input type="number" step="0.01" min="0" id="favor-ajuste-monto" class="input" placeholder="0.00">
           </div>
           <div>
+            <label class="label">Nota (opcional)</label>
+            <input type="text" id="favor-ajuste-nota" class="input" placeholder="Motivo del crédito">
+          </div>
+          <div>
             <button onclick="aplicarAjusteFavor()" class="btn-primary w-full">Aplicar ajuste</button>
           </div>
         </div>
       </div>
 
-      <!-- Detalle por file -->
-      <h4 class="font-display text-lg mb-2">Detalle por file</h4>
+      <!-- Detalle por fuente (file o crédito directo) -->
+      <h4 class="font-display text-lg mb-2">Detalle por origen</h4>
       <div class="overflow-x-auto bg-white border border-line rounded-xl mb-4">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
               <th class="py-2 px-3">Nº File</th>
-              <th class="py-2 px-3">Cliente</th>
-              <th class="py-2 px-3">Destino</th>
+              <th class="py-2 px-3">Cliente / Nota</th>
+              <th class="py-2 px-3">Destino / Fecha</th>
               <th class="py-2 px-3 text-right">Costo neto</th>
               <th class="py-2 px-3 text-right">Saldo a favor</th>
               <th class="py-2 px-3">Editar</th>
@@ -876,6 +895,30 @@
       <input type="number" step="0.01" min="0" id="favor-file-nuevo" class="input mb-2" placeholder="0.00">
       <p class="text-xs opacity-50 mb-3">Ingresá 0 si el crédito ya fue consumido o no existe.</p>
       <button onclick="guardarFavorFile()" class="btn-primary w-full">Guardar cambio</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ELEGIR DE DÓNDE USAR EL SALDO A FAVOR AL PAGAR UN FILE -->
+  <div id="modal-usar-credito" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="flex justify-between items-center mb-3">
+        <h3 id="usar-credito-title" class="font-display text-xl">Usar saldo a favor</h3>
+        <button onclick="closeUsarCreditoModal()" class="text-2xl leading-none">&times;</button>
+      </div>
+      <p class="text-sm opacity-70 mb-1">Saldo pendiente en este file: <span id="usar-credito-pendiente" class="font-mono-num font-semibold"></span></p>
+      <p class="text-xs opacity-50 mb-4">Elegí de qué crédito tomar el pago. No se moverá dinero de ninguna caja.</p>
+      <div class="overflow-x-auto bg-white border border-line rounded-xl">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Origen del crédito</th>
+              <th class="py-2 px-3 text-right">Disponible</th>
+              <th class="py-2 px-3">Usar</th>
+            </tr>
+          </thead>
+          <tbody id="usar-credito-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1687,7 +1730,7 @@ service cloud.firestore {
           <label class="label">Tipo de cambio (opcional)</label>
           <input type="number" step="0.01" min="0" id="pago-tc" placeholder="Solo informativo" class="input mb-2">
           <button type="submit" class="btn-danger w-full">Registrar pago</button>
-          <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="usarCreditoMayorista()"></button>
+          <button type="button" id="btn-usar-credito" class="btn-ghost w-full mt-2 hidden" onclick="abrirUsarCreditoModal()"></button>
         </form>
       </div>
     </div>
@@ -1731,7 +1774,7 @@ const FILE_TABLE_COLS = 14;
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
 const ADMIN_AUTH_DEFAULT = { usuario: 'admin', clave: 'ondina2026' };
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [] };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [], creditosMayoristas: [] };
 
 /* ====================================================================
    USUARIOS Y ROLES (vendedores con acceso restringido)
@@ -1964,6 +2007,9 @@ function sanearSaldosFiles(){
     f.saldoCliente = redondear2(f.saldoCliente);
     f.saldoMayorista = redondear2(f.saldoMayorista);
   });
+  (state.creditosMayoristas || []).forEach(c=>{
+    c.monto = redondear2(c.monto);
+  });
 }
 function persist(){
   storageSet(STORAGE_KEY, JSON.stringify(state));
@@ -1989,6 +2035,7 @@ function load(){
       state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
       state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
       state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
+      state.creditosMayoristas = Array.isArray(data.creditosMayoristas) ? data.creditosMayoristas : [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     sanearSaldosFiles();
     seedMayoristasSiVacio();
@@ -3324,7 +3371,9 @@ function renderCuentas(){
   // ---- SALDOS A FAVOR POR MAYORISTA ----
   const favorWrap = document.getElementById('cc-favor-wrap');
   const filesConFavor = files.filter(f => f.saldoMayorista < 0 && f.mayorista);
-  if(favorWrap) favorWrap.style.display = filesConFavor.length === 0 ? 'none' : '';
+  const creditosDirectos = (state.creditosMayoristas || []).filter(c => c.monto > 0 && c.mayorista);
+  if(favorWrap) favorWrap.style.display = (filesConFavor.length === 0 && creditosDirectos.length === 0) ? 'none' : '';
+  renderMayoristaSelect(document.getElementById('favor-nuevo-mayorista'), '');
 
   // Agrupar por mayorista + moneda
   const favorMap = {};
@@ -3334,6 +3383,11 @@ function renderCuentas(){
     favorMap[key].total += (-f.saldoMayorista);
     favorMap[key].files.push(f);
   });
+  creditosDirectos.forEach(c => {
+    const key = c.mayorista + '||' + c.moneda;
+    if(!favorMap[key]) favorMap[key] = { mayorista: c.mayorista, moneda: c.moneda, total: 0, files: [] };
+    favorMap[key].total += c.monto;
+  });
   const favorRows = Object.values(favorMap).sort((a,b) => b.total - a.total);
   const tbodyFavor = document.getElementById('cc-favor-tbody');
   if(tbodyFavor){
@@ -3341,7 +3395,7 @@ function renderCuentas(){
       tbodyFavor.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-sm opacity-50">No hay saldos a favor con ningún mayorista.</td></tr>`;
     } else {
       tbodyFavor.innerHTML = favorRows.map(r => {
-        const filesDesc = r.files.map(f => `#${f.fileNo}`).join(', ');
+        const filesDesc = r.files.length ? r.files.map(f => `#${f.fileNo}`).join(', ') : '<span class="opacity-40">— (directo)</span>';
         return `<tr class="border-b border-line hover-bg-paper transition">
           <td class="py-2 px-3 font-semibold">${esc(r.mayorista)}</td>
           <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB;color:#374151">${r.moneda}</span></td>
@@ -3355,13 +3409,21 @@ function renderCuentas(){
     }
   }
 }
+function abrirFavorNuevo(){
+  const mayorista = document.getElementById('favor-nuevo-mayorista').value;
+  const moneda = document.getElementById('favor-nuevo-moneda').value;
+  if(!mayorista){ toast('Elegí un mayorista primero.', 'error'); return; }
+  openFavorModal(mayorista, moneda);
+}
 
 /* ====================================================================
    SALDOS A FAVOR — MODAL Y EDICIÓN
 ==================================================================== */
 let favorModalMayorista = null;
 let favorModalMoneda = null;
+let favorEditTipo = null; // 'file' | 'standalone'
 let favorFileEditId = null;
+let favorCreditoEditId = null;
 
 function openFavorModal(mayorista, moneda){
   favorModalMayorista = mayorista;
@@ -3369,6 +3431,7 @@ function openFavorModal(mayorista, moneda){
   document.getElementById('favor-modal-title').textContent = `Saldo a favor — ${mayorista} (${moneda})`;
   document.getElementById('favor-ajuste-moneda-label').textContent = moneda;
   document.getElementById('favor-ajuste-monto').value = '';
+  document.getElementById('favor-ajuste-nota').value = '';
   renderFavorDetalle();
   document.getElementById('modal-favor').classList.remove('hidden');
 }
@@ -3379,14 +3442,14 @@ function closeFavorModal(){
 }
 function renderFavorDetalle(){
   const files = state.files.filter(f => f.mayorista === favorModalMayorista && f.moneda === favorModalMoneda && f.saldoMayorista < 0);
+  const creditos = (state.creditosMayoristas || []).filter(c => c.mayorista === favorModalMayorista && c.moneda === favorModalMoneda && c.monto > 0);
   const tbody = document.getElementById('favor-detalle-tbody');
   if(!tbody) return;
-  if(files.length === 0){
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-sm opacity-50">No hay files con saldo a favor para este mayorista.</td></tr>`;
+  if(files.length === 0 && creditos.length === 0){
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-sm opacity-50">No hay saldo a favor registrado para este mayorista.</td></tr>`;
     return;
   }
-  const total = files.reduce((s,f) => s + (-f.saldoMayorista), 0);
-  tbody.innerHTML = files.map(f => `
+  const filasFiles = files.map(f => `
     <tr class="border-b border-line hover-bg-paper transition">
       <td class="py-2 px-3 font-mono-num">${f.fileNo}</td>
       <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
@@ -3394,10 +3457,24 @@ function renderFavorDetalle(){
       <td class="py-2 px-3 font-mono-num text-right">${fmt(f.costoNeto, f.moneda)}</td>
       <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:#3730A3">${fmt(-f.saldoMayorista, f.moneda)}</td>
       <td class="py-2 px-3">
-        <button onclick="openFavorFileEdit(${f.id})" class="btn-ghost text-xs">Editar</button>
+        <button onclick="openFavorFileEdit(${f.id})" class="btn-mini">Editar</button>
       </td>
     </tr>
-  `).join('') + `
+  `).join('');
+  const filasCreditos = creditos.map(c => `
+    <tr class="border-b border-line hover-bg-paper transition">
+      <td class="py-2 px-3 text-xs opacity-40">—</td>
+      <td class="py-2 px-3">${esc(c.nota || 'Crédito directo')}</td>
+      <td class="py-2 px-3 text-xs opacity-60">${fmtFechaCorta(c.fecha)}</td>
+      <td class="py-2 px-3 text-xs opacity-40">—</td>
+      <td class="py-2 px-3 font-mono-num text-right font-semibold" style="color:#3730A3">${fmt(c.monto, c.moneda)}</td>
+      <td class="py-2 px-3">
+        <button onclick="openFavorCreditoEdit(${c.id})" class="btn-mini">Editar</button>
+      </td>
+    </tr>
+  `).join('');
+  const total = files.reduce((s,f) => s + (-f.saldoMayorista), 0) + creditos.reduce((s,c) => s + c.monto, 0);
+  tbody.innerHTML = filasFiles + filasCreditos + `
     <tr style="background:#F9FAFB;font-weight:600;">
       <td colspan="4" class="py-2 px-3 text-right text-xs uppercase tracking-widest opacity-60">Total a favor</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:#3730A3">${fmt(total, favorModalMoneda)}</td>
@@ -3408,13 +3485,50 @@ function renderFavorDetalle(){
 function openFavorFileEdit(fileId){
   const f = state.files.find(x => x.id === fileId);
   if(!f) return;
+  favorEditTipo = 'file';
   favorFileEditId = fileId;
   document.getElementById('favor-file-title').textContent = `File #${f.fileNo} — ${clienteNombreCompleto(f)}`;
   document.getElementById('favor-file-actual').textContent = fmt(-f.saldoMayorista, f.moneda);
   document.getElementById('favor-file-nuevo').value = (-f.saldoMayorista).toFixed(2);
   document.getElementById('modal-favor-file').classList.remove('hidden');
 }
+function openFavorCreditoEdit(creditoId){
+  const c = (state.creditosMayoristas || []).find(x => x.id === creditoId);
+  if(!c) return;
+  favorEditTipo = 'standalone';
+  favorCreditoEditId = creditoId;
+  document.getElementById('favor-file-title').textContent = c.nota ? `Crédito directo — ${c.nota}` : 'Crédito directo (sin file)';
+  document.getElementById('favor-file-actual').textContent = fmt(c.monto, c.moneda);
+  document.getElementById('favor-file-nuevo').value = c.monto.toFixed(2);
+  document.getElementById('modal-favor-file').classList.remove('hidden');
+}
 function guardarFavorFile(){
+  if(favorEditTipo === 'standalone'){
+    const c = (state.creditosMayoristas || []).find(x => x.id === favorCreditoEditId);
+    if(!c) return;
+    const nuevoFavor = Math.max(0, parseFloat(document.getElementById('favor-file-nuevo').value) || 0);
+    const anterior = c.monto;
+    const delta = nuevoFavor - anterior;
+    c.monto = redondear2(nuevoFavor);
+    if(delta !== 0){
+      state.movs.push({
+        id: Date.now(),
+        fecha: todayStr(),
+        fileId: null, fileNo: null,
+        concepto: `Ajuste de saldo a favor directo con ${c.mayorista}${c.nota ? ' — ' + c.nota : ''}`,
+        monto: Math.abs(delta),
+        moneda: c.moneda,
+        tipo: delta > 0 ? 'egreso' : 'ingreso',
+        caja: null,
+        categoria: 'ajuste-favor'
+      });
+    }
+    document.getElementById('modal-favor-file').classList.add('hidden');
+    save();
+    renderFavorDetalle();
+    renderCuentas();
+    return;
+  }
   const f = state.files.find(x => x.id === favorFileEditId);
   if(!f) return;
   const nuevoFavor = parseFloat(document.getElementById('favor-file-nuevo').value) || 0;
@@ -3445,52 +3559,61 @@ function aplicarAjusteFavor(){
   if(!favorModalMayorista) return;
   const tipo = document.getElementById('favor-ajuste-tipo').value;
   const monto = parseFloat(document.getElementById('favor-ajuste-monto').value) || 0;
+  const nota = document.getElementById('favor-ajuste-nota').value.trim();
   if(monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
 
-  const filesConFavor = state.files
-    .filter(f => f.mayorista === favorModalMayorista && f.moneda === favorModalMoneda && f.saldoMayorista < 0)
-    .sort((a,b) => a.fecha.localeCompare(b.fecha));
-
   if(tipo === 'agregar'){
-    // Agregar crédito: se distribuye entre los files existentes con crédito (aumenta el más antiguo)
-    // O si no hay files con crédito, no hay dónde ponerlo — informar
-    if(filesConFavor.length === 0){
-      toast('No hay files con saldo a favor para este mayorista. Usá "Editar" en un file específico para agregar crédito directamente.', 'error');
-      return;
-    }
-    let restante = monto;
-    filesConFavor.forEach(f => {
-      if(restante <= 0) return;
-      f.saldoMayorista -= restante; // más negativo = más crédito
-      restante = 0;
+    // Crédito nuevo, no ligado a ningún file: se guarda como saldo a favor directo.
+    state.creditosMayoristas = state.creditosMayoristas || [];
+    state.creditosMayoristas.push({
+      id: Date.now(),
+      mayorista: favorModalMayorista,
+      moneda: favorModalMoneda,
+      monto: redondear2(monto),
+      fecha: todayStr(),
+      nota
+    });
+    state.movs.push({
+      id: Date.now() + 1,
+      fecha: todayStr(),
+      fileId: null, fileNo: null,
+      concepto: `Saldo a favor directo — ${favorModalMayorista}${nota ? ' — ' + nota : ''} (+${fmt(monto, favorModalMoneda)})`,
+      monto, moneda: favorModalMoneda,
+      tipo: 'egreso',
+      caja: null,
+      categoria: 'ajuste-favor'
     });
   } else {
-    // Reducir crédito: consume el crédito de los files más antiguos primero
+    // Reducir crédito: consume el crédito disponible (files y créditos directos), más antiguo primero.
     let restante = monto;
-    filesConFavor.forEach(f => {
+    const fuentes = fuentesCreditoMayorista(favorModalMayorista, favorModalMoneda, null);
+    fuentes.forEach(s => {
       if(restante <= 0) return;
-      const disponible = -f.saldoMayorista;
-      const usar = Math.min(disponible, restante);
-      f.saldoMayorista += usar;
+      const usar = Math.min(s.disponible, restante);
+      if(usar <= 0) return;
+      descontarFuenteCredito(s, usar);
       restante -= usar;
     });
+    const reducido = redondear2(monto - Math.max(restante,0));
     if(restante > 0){
-      toast(`Solo se pudo reducir ${fmt(monto - restante, favorModalMoneda)} porque no había suficiente crédito acumulado.`, 'info');
+      toast(`Solo se pudo reducir ${fmt(reducido, favorModalMoneda)} porque no había suficiente crédito acumulado.`, 'info');
+    }
+    if(reducido > 0){
+      state.movs.push({
+        id: Date.now(),
+        fecha: todayStr(),
+        fileId: null, fileNo: null,
+        concepto: `Ajuste global de saldo a favor — ${favorModalMayorista}${nota ? ' — ' + nota : ''} (-${fmt(reducido, favorModalMoneda)})`,
+        monto: reducido, moneda: favorModalMoneda,
+        tipo: 'ingreso',
+        caja: null,
+        categoria: 'ajuste-favor'
+      });
     }
   }
 
-  state.movs.push({
-    id: Date.now(),
-    fecha: todayStr(),
-    fileId: null, fileNo: null,
-    concepto: `Ajuste global de saldo a favor — ${favorModalMayorista} (${tipo === 'agregar' ? '+' : '-'}${fmt(monto, favorModalMoneda)})`,
-    monto, moneda: favorModalMoneda,
-    tipo: tipo === 'agregar' ? 'egreso' : 'ingreso',
-    caja: null,
-    categoria: 'ajuste-favor'
-  });
-
   document.getElementById('favor-ajuste-monto').value = '';
+  document.getElementById('favor-ajuste-nota').value = '';
   save();
   renderFavorDetalle();
   renderCuentas();
@@ -4090,30 +4213,51 @@ function renderPresupuestos(){
    negativo. Ese excedente se puede aplicar como pago en otro file
    del mismo mayorista y la misma moneda, sin mover cajas.)
 ==================================================================== */
-function creditoMayoristaDisponible(mayorista, moneda, excludeFileId){
-  if(!mayorista) return 0;
-  return state.files
-    .filter(f => f.mayorista === mayorista && f.moneda === moneda && f.id !== excludeFileId && f.saldoMayorista < 0)
-    .reduce((sum, f) => sum + (-f.saldoMayorista), 0);
-}
-function aplicarCreditoMayorista(fileDestino, monto){
-  // Resta "monto" del saldo a favor disponible, tomándolo de los files
-  // del mismo mayorista/moneda que tengan saldoMayorista negativo (más antiguos primero).
-  // Devuelve { aplicado, fuentes: [{fileId, monto}] } para poder revertir esta operación después.
-  let restante = monto;
+function fuentesCreditoMayorista(mayorista, moneda, excludeFileId){
+  // Junta todas las fuentes de saldo a favor disponibles para un mayorista/moneda:
+  // files que quedaron con saldoMayorista negativo (se pagó de más) y créditos
+  // directos cargados sin estar ligados a ningún file. Ordenadas de más antigua a más reciente.
+  if(!mayorista) return [];
   const fuentes = [];
-  const candidatos = state.files
-    .filter(f => f.mayorista === fileDestino.mayorista && f.moneda === fileDestino.moneda && f.id !== fileDestino.id && f.saldoMayorista < 0)
-    .sort((a,b)=> a.fecha.localeCompare(b.fecha));
-  for(const f of candidatos){
-    if(restante <= 0) break;
-    const disponibleAqui = -f.saldoMayorista;
-    const usar = Math.min(disponibleAqui, restante);
-    f.saldoMayorista += usar;
-    fuentes.push({ fileId: f.id, monto: usar });
-    restante -= usar;
+  state.files.forEach(f=>{
+    if(f.mayorista === mayorista && f.moneda === moneda && f.id !== excludeFileId && f.saldoMayorista < 0){
+      fuentes.push({
+        tipo: 'file',
+        fileId: f.id,
+        descripcion: `File #${f.fileNo} — ${clienteNombreCompleto(f)}`,
+        disponible: -f.saldoMayorista,
+        fecha: f.fecha
+      });
+    }
+  });
+  (state.creditosMayoristas || []).forEach(c=>{
+    if(c.mayorista === mayorista && c.moneda === moneda && c.monto > 0){
+      fuentes.push({
+        tipo: 'standalone',
+        creditoId: c.id,
+        descripcion: c.nota ? `Crédito directo — ${c.nota}` : 'Crédito directo (sin file)',
+        disponible: c.monto,
+        fecha: c.fecha
+      });
+    }
+  });
+  fuentes.sort((a,b)=> String(a.fecha).localeCompare(String(b.fecha)));
+  return fuentes;
+}
+function creditoMayoristaDisponible(mayorista, moneda, excludeFileId){
+  return fuentesCreditoMayorista(mayorista, moneda, excludeFileId).reduce((sum, s) => sum + s.disponible, 0);
+}
+function descontarFuenteCredito(fuente, monto){
+  // Descuenta "monto" de una fuente puntual (file o crédito directo) y devuelve
+  // el detalle { tipo, fileId|creditoId, monto } para poder revertirlo después.
+  if(fuente.tipo === 'standalone'){
+    const c = (state.creditosMayoristas || []).find(x => x.id === fuente.creditoId);
+    if(c) c.monto = redondear2(c.monto - monto);
+    return { tipo: 'standalone', creditoId: fuente.creditoId, monto };
   }
-  return { aplicado: monto - restante, fuentes };
+  const origen = state.files.find(x => x.id === fuente.fileId);
+  if(origen) origen.saldoMayorista += monto;
+  return { tipo: 'file', fileId: fuente.fileId, monto };
 }
 
 /* ====================================================================
@@ -4380,30 +4524,77 @@ document.getElementById('form-cobro').addEventListener('submit', function(e){
   openDetail(f.id);
 });
 
-function usarCreditoMayorista(){
+function abrirUsarCreditoModal(){
   const f = state.files.find(x=>x.id===currentFileId);
   if(!f) return;
   if(f.saldoMayorista <= 0){ toast('Este file no tiene saldo pendiente con el mayorista.', 'error'); return; }
   const credito = creditoMayoristaDisponible(f.mayorista, f.moneda, f.id);
   if(credito <= 0){ toast('No hay saldo a favor disponible con este mayorista.', 'error'); return; }
+  document.getElementById('usar-credito-title').textContent = `Usar saldo a favor — ${f.mayorista}`;
+  renderUsarCreditoTbody();
+  document.getElementById('modal-usar-credito').classList.remove('hidden');
+}
+function closeUsarCreditoModal(){
+  document.getElementById('modal-usar-credito').classList.add('hidden');
+}
+function renderUsarCreditoTbody(){
+  const f = state.files.find(x=>x.id===currentFileId);
+  const tbody = document.getElementById('usar-credito-tbody');
+  if(!f || !tbody) return;
+  const pendiente = Math.max(redondear2(f.saldoMayorista), 0);
+  document.getElementById('usar-credito-pendiente').textContent = fmt(pendiente, f.moneda);
+  if(pendiente <= 0){
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">Este file ya no tiene saldo pendiente con el mayorista.</td></tr>`;
+    return;
+  }
+  const fuentes = fuentesCreditoMayorista(f.mayorista, f.moneda, f.id);
+  if(fuentes.length === 0){
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">No hay saldo a favor disponible con este mayorista.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = fuentes.map((s, i) => `
+    <tr class="border-b border-line hover-bg-paper transition">
+      <td class="py-2 px-3">${esc(s.descripcion)}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="color:#3730A3">${fmt(s.disponible, f.moneda)}</td>
+      <td class="py-2 px-3"><button onclick="usarCreditoDeFuente(${i})" class="btn-mini">Usar de aquí</button></td>
+    </tr>
+  `).join('');
+}
+function usarCreditoDeFuente(index){
+  const f = state.files.find(x=>x.id===currentFileId);
+  if(!f) return;
+  const pendiente = Math.max(redondear2(f.saldoMayorista), 0);
+  if(pendiente <= 0){ closeUsarCreditoModal(); openDetail(f.id); return; }
+  const fuentes = fuentesCreditoMayorista(f.mayorista, f.moneda, f.id);
+  const s = fuentes[index];
+  if(!s) return;
+  const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
+  const input = prompt(`¿Cuánto usar de "${s.descripcion}"?\nDisponible: ${fmt(s.disponible, f.moneda)} — Máximo aplicable: ${fmt(maxAplicable, f.moneda)}`, maxAplicable.toFixed(2));
+  if(input === null) return;
+  let monto = parseFloat(input);
+  if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
+  monto = redondear2(Math.min(monto, maxAplicable));
 
-  const aplicar = Math.min(credito, f.saldoMayorista);
-  if(!confirm(`¿Aplicar ${fmt(aplicar, f.moneda)} de saldo a favor con ${f.mayorista} a este file? No se moverá dinero de ninguna caja.`)) return;
-
-  const resultado = aplicarCreditoMayorista(f, aplicar);
-  f.saldoMayorista -= resultado.aplicado;
+  const fuenteDetalle = descontarFuenteCredito(s, monto);
+  f.saldoMayorista = redondear2(f.saldoMayorista - monto);
 
   state.movs.push({
     id: Date.now(),
     fecha: todayStr(),
     fileId: f.id,
     fileNo: f.fileNo,
-    concepto: `Pago a mayorista con saldo a favor — File #${f.fileNo} (${f.mayorista || 'sin especificar'})`,
-    monto: resultado.aplicado, moneda: f.moneda, tipo: 'egreso', caja: null, categoria: 'credito-mayorista',
-    creditoFuentes: resultado.fuentes
+    concepto: `Pago a mayorista con saldo a favor — File #${f.fileNo} (${f.mayorista || 'sin especificar'}) — ${s.descripcion}`,
+    monto, moneda: f.moneda, tipo: 'egreso', caja: null, categoria: 'credito-mayorista',
+    creditoFuentes: [fuenteDetalle]
   });
   save();
   openDetail(f.id);
+  const pendienteRestante = Math.max(redondear2(f.saldoMayorista), 0);
+  if(pendienteRestante > 0 && creditoMayoristaDisponible(f.mayorista, f.moneda, f.id) > 0){
+    renderUsarCreditoTbody();
+  } else {
+    closeUsarCreditoModal();
+  }
 }
 
 function consolidarSaldoCliente(fileId){
@@ -4620,8 +4811,13 @@ function revertirEfectoMov(m){
   if(m.categoria === 'credito-mayorista'){
     f.saldoMayorista += m.monto;
     (m.creditoFuentes || []).forEach(src=>{
-      const origen = state.files.find(x=>x.id===src.fileId);
-      if(origen) origen.saldoMayorista -= src.monto;
+      if(src.tipo === 'standalone'){
+        const c = (state.creditosMayoristas || []).find(x=>x.id===src.creditoId);
+        if(c) c.monto = redondear2(c.monto + src.monto);
+      } else {
+        const origen = state.files.find(x=>x.id===src.fileId);
+        if(origen) origen.saldoMayorista -= src.monto;
+      }
     });
   }
 }
@@ -4639,14 +4835,26 @@ function aplicarEfectoMov(m){
     const fuentesNuevas = [];
     (m.creditoFuentes || []).forEach(src=>{
       if(restante <= 0) return;
-      const origen = state.files.find(x=>x.id===src.fileId);
-      if(!origen) return;
-      const disponible = Math.max(0, -origen.saldoMayorista);
-      const usar = Math.min(disponible, restante, src.monto);
-      if(usar > 0){
-        origen.saldoMayorista += usar;
-        fuentesNuevas.push({ fileId: src.fileId, monto: usar });
-        restante -= usar;
+      if(src.tipo === 'standalone'){
+        const c = (state.creditosMayoristas || []).find(x=>x.id===src.creditoId);
+        if(!c) return;
+        const disponible = Math.max(0, c.monto);
+        const usar = Math.min(disponible, restante, src.monto);
+        if(usar > 0){
+          c.monto = redondear2(c.monto - usar);
+          fuentesNuevas.push({ tipo:'standalone', creditoId: src.creditoId, monto: usar });
+          restante -= usar;
+        }
+      } else {
+        const origen = state.files.find(x=>x.id===src.fileId);
+        if(!origen) return;
+        const disponible = Math.max(0, -origen.saldoMayorista);
+        const usar = Math.min(disponible, restante, src.monto);
+        if(usar > 0){
+          origen.saldoMayorista += usar;
+          fuentesNuevas.push({ tipo:'file', fileId: src.fileId, monto: usar });
+          restante -= usar;
+        }
       }
     });
     f.saldoMayorista -= (m.monto - restante);
@@ -4818,6 +5026,7 @@ function importData(evt){
       state.presupuestos = Array.isArray(data.presupuestos) ? data.presupuestos : [];
       state.gastoCategorias = (Array.isArray(data.gastoCategorias) && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice();
       if(Array.isArray(data.mayoristas)) state.mayoristas = data.mayoristas;
+      state.creditosMayoristas = Array.isArray(data.creditosMayoristas) ? data.creditosMayoristas : [];
       seedMayoristasSiVacio();
       // Los usuarios/contraseñas no se pisan con la importación salvo que el archivo los incluya explícitamente
       if(Array.isArray(data.usuarios)) state.usuarios = data.usuarios;
@@ -4845,7 +5054,7 @@ function resetAll(){
   const usuariosPrevios = state.usuarios;
   const adminAuthPrevio = state.adminAuth;
   const mayoristasPrevios = state.mayoristas;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios, creditosMayoristas: [] };
   save();
 }
 
@@ -4924,6 +5133,7 @@ function initFirebase(){
           state.usuarios = Array.isArray(data.usuarios) ? data.usuarios : [];
           state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
           state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
+          state.creditosMayoristas = Array.isArray(data.creditosMayoristas) ? data.creditosMayoristas : [];
           sanearSaldosFiles();
           seedMayoristasSiVacio();
           seedPresupuestoNumerosSiFaltan();
