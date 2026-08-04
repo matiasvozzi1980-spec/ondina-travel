@@ -1674,6 +1674,7 @@ service cloud.firestore {
           <label class="label">Tipo de cambio (opcional)</label>
           <input type="number" step="0.01" min="0" id="cobro-tc" placeholder="Solo informativo" class="input mb-2">
           <button type="submit" class="btn-primary w-full">Registrar cobro</button>
+          <button type="button" id="btn-consolidar-saldo" class="btn-ghost w-full mt-2 hidden solo-admin-accion" onclick="consolidarSaldoCliente(currentFileId)"></button>
         </form>
         <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
           <p class="font-display mb-2">Registrar pago a mayorista</p>
@@ -1718,6 +1719,11 @@ service cloud.firestore {
 ==================================================================== */
 const CAJAS = ['Banco','Ivana','Raul','Casa','Juli'];
 const CAJA_LABELS = {Banco:'Banco', Ivana:'Ivana', Raul:'Raúl', Casa:'Casa', Juli:'Juli'};
+function sinCajaTexto(m){
+  // Texto para movimientos que no mueven plata de ninguna caja física.
+  if(m.categoria === 'consolidacion') return 'Sin caja (consolidado)';
+  return 'Sin caja (saldo a favor)';
+}
 const MONEDAS = ['USD','ARS'];
 const MONEDA_SYM = {USD:'US$', ARS:'AR$'};
 const STORAGE_KEY = 'bitacora_viajes_v2';
@@ -2847,7 +2853,7 @@ function renderHistorial(){
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
-      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
+      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">' + sinCajaTexto(m) + '</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
         ${currentUserRole === 'vendedor' ? '' : `
@@ -2951,7 +2957,7 @@ async function generarComprobante(movId){
   if(f) filas.push(['Cliente', esc(clienteNombreCompleto(f))]);
   filas.push(['Concepto', esc(m.concepto)]);
   if(m.categoriaGasto) filas.push(['Categoría', esc(m.categoriaGasto)]);
-  filas.push(['Caja', m.caja ? esc(CAJA_LABELS[m.caja] || m.caja) : 'Sin caja (saldo a favor)']);
+  filas.push(['Caja', m.caja ? esc(CAJA_LABELS[m.caja] || m.caja) : sinCajaTexto(m)]);
   filas.push(['Tipo', m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso']);
   if(m.tipoCambio) filas.push(['Tipo de cambio', String(m.tipoCambio)]);
 
@@ -4175,6 +4181,16 @@ function openDetail(id){
     btnCredito.classList.add('hidden');
   }
 
+  const btnConsolidar = document.getElementById('btn-consolidar-saldo');
+  if(btnConsolidar){
+    if(redondear2(f.saldoCliente) > 0){
+      btnConsolidar.classList.remove('hidden');
+      btnConsolidar.textContent = `Consolidar (dar de baja saldo — ${fmt(f.saldoCliente, f.moneda)})`;
+    } else {
+      btnConsolidar.classList.add('hidden');
+    }
+  }
+
   document.getElementById('form-cobro').reset();
   document.getElementById('form-pago').reset();
   renderFileHistory(id);
@@ -4334,7 +4350,7 @@ function renderFileHistory(fileId){
       <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3">${esc(m.concepto)}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
-      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">Sin caja (saldo a favor)</span>'}</td>
+      <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">' + sinCajaTexto(m) + '</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
         ${currentUserRole === 'vendedor' ? '' : `
@@ -4391,6 +4407,34 @@ function usarCreditoMayorista(){
   });
   save();
   openDetail(f.id);
+}
+
+function consolidarSaldoCliente(fileId){
+  const f = state.files.find(x=>x.id===fileId);
+  if(!f) return;
+  const saldo = redondear2(f.saldoCliente);
+  if(saldo <= 0){ toast('Este file no tiene saldo pendiente del cliente.', 'info'); return; }
+
+  const motivo = prompt(
+    `Vas a consolidar (dar de baja) el saldo pendiente de ${fmt(saldo, f.moneda)} del cliente ${clienteNombreCompleto(f)}.\n\n` +
+    `Esto NO genera ningún movimiento de caja ni cambia el precio de venta ya registrado — solo marca que ese saldo no se va a cobrar.\n\n` +
+    `Motivo (opcional):`,
+    'Diferencia menor'
+  );
+  if(motivo === null) return; // canceló el prompt
+
+  f.saldoCliente = 0;
+  state.movs.push({
+    id: Date.now(),
+    fecha: todayStr(),
+    fileId: f.id,
+    fileNo: f.fileNo,
+    concepto: `Consolidación de saldo — File #${f.fileNo} (${clienteNombreCompleto(f)})${motivo ? ' — ' + motivo : ''}`,
+    monto: saldo, moneda: f.moneda, tipo: 'egreso', caja: null, categoria: 'consolidacion'
+  });
+  save();
+  openDetail(f.id);
+  toast('Saldo consolidado.', 'success');
 }
 
 document.getElementById('form-pago').addEventListener('submit', function(e){
@@ -4575,6 +4619,7 @@ function revertirEfectoMov(m){
   if(!f) return;
   if(m.categoria === 'cobro') f.saldoCliente += m.monto;
   if(m.categoria === 'pago') f.saldoMayorista += m.monto;
+  if(m.categoria === 'consolidacion') f.saldoCliente += m.monto;
   if(m.categoria === 'credito-mayorista'){
     f.saldoMayorista += m.monto;
     (m.creditoFuentes || []).forEach(src=>{
@@ -4589,6 +4634,7 @@ function aplicarEfectoMov(m){
   if(!f) return;
   if(m.categoria === 'cobro') f.saldoCliente -= m.monto;
   if(m.categoria === 'pago') f.saldoMayorista -= m.monto;
+  if(m.categoria === 'consolidacion') f.saldoCliente -= m.monto;
   if(m.categoria === 'credito-mayorista'){
     // Vuelve a tomar el crédito de las mismas fuentes que tenía originalmente,
     // si todavía tienen saldo a favor suficiente; el resto queda como saldo pendiente normal.
