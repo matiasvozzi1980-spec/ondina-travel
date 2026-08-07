@@ -1543,11 +1543,11 @@ service cloud.firestore {
         </div>
         <div>
           <label class="label">Costo neto</label>
-          <input type="number" step="0.01" min="0" id="file-costo" required class="input" value="0">
+          <input type="number" step="0.01" min="0" id="file-costo" required class="input" placeholder="0.00">
         </div>
         <div>
           <label class="label">Precio venta</label>
-          <input type="number" step="0.01" min="0" id="file-precio" required class="input" value="0">
+          <input type="number" step="0.01" min="0" id="file-precio" required class="input" placeholder="0.00">
         </div>
       </div>
 
@@ -1646,11 +1646,11 @@ service cloud.firestore {
         </div>
         <div>
           <label class="label">Costo neto</label>
-          <input type="number" step="0.01" min="0" id="presupuesto-costo" required class="input" value="0">
+          <input type="number" step="0.01" min="0" id="presupuesto-costo" required class="input" placeholder="0.00">
         </div>
         <div>
           <label class="label">Precio venta</label>
-          <input type="number" step="0.01" min="0" id="presupuesto-precio" required class="input" value="0">
+          <input type="number" step="0.01" min="0" id="presupuesto-precio" required class="input" placeholder="0.00">
         </div>
       </div>
 
@@ -2671,7 +2671,17 @@ function mensajeAlertaVencimiento(f){
   const detalleTxt = detalles.length ? ('\n' + detalles.join('\n')) : '';
   return `Hola ${f.clienteNombre || ''}! Te escribimos de Ondina Travel por tu file #${f.fileNo} (${f.destino}), que ${estadoTxt} (${f.vencimiento ? fmtFechaCorta(f.vencimiento) : '—'}).${detalleTxt}\n\n¿Podemos coordinar el pago?`;
 }
-function enviarAlertaVencimientoWA(fileId){
+function abrirWhatsAppChat(numero){
+  numero = (numero || '').replace(/\D/g,'');
+  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
+  if(isApple){
+    window.location.href = 'whatsapp://send?phone=' + numero;
+    setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero, '_blank'); }, 2000);
+  } else {
+    window.open('https://wa.me/' + numero, '_blank');
+  }
+}
+async function enviarAlertaVencimientoWA(fileId){
   const f = state.files.find(x=>x.id===fileId);
   if(!f) return;
   const mensaje = mensajeAlertaVencimiento(f);
@@ -2682,7 +2692,13 @@ function enviarAlertaVencimientoWA(fileId){
     numero = input.replace(/\D/g,'');
     if(!numero){ toast('Número inválido.', 'error'); return; }
   }
-  abrirWhatsAppConMensaje(numero, mensaje);
+  try{
+    await navigator.clipboard.writeText(mensaje);
+    toast('Mensaje copiado — pegalo en el chat de WhatsApp con ⌘V / Ctrl+V.', 'success');
+  }catch(e){
+    toast('No se pudo copiar el mensaje automáticamente. Copialo manualmente antes de escribir.', 'error');
+  }
+  abrirWhatsAppChat(numero);
 }
 
 /* ====================================================================
@@ -3796,11 +3812,12 @@ function openFileModal(presupuesto){
   document.getElementById('file-form').reset();
   hideClienteAutocomplete('file');
   document.getElementById('file-fecha').value = todayStr();
-  document.getElementById('file-fileno').value = state.nextFileNo;
+  document.getElementById('file-fileno').value = '';
+  document.getElementById('file-fileno').placeholder = `Sugerido: ${state.nextFileNo}`;
   document.getElementById('file-fileno').disabled = false;
   document.getElementById('file-moneda').value = presupuesto ? presupuesto.moneda : 'USD';
-  document.getElementById('file-costo').value = presupuesto ? presupuesto.costoNeto : '0';
-  document.getElementById('file-precio').value = presupuesto ? presupuesto.precioVenta : '0';
+  document.getElementById('file-costo').value = presupuesto ? presupuesto.costoNeto : '';
+  document.getElementById('file-precio').value = presupuesto ? presupuesto.precioVenta : '';
   document.getElementById('file-vencimiento').value = '';
   document.getElementById('file-tc').value = '';
   document.getElementById('file-credito-mayorista').value = '0';
@@ -4078,8 +4095,8 @@ function openPresupuestoModal(){
   hideClienteAutocomplete('presupuesto');
   document.getElementById('presupuesto-fecha').value = todayStr();
   document.getElementById('presupuesto-moneda').value = 'USD';
-  document.getElementById('presupuesto-costo').value = '0';
-  document.getElementById('presupuesto-precio').value = '0';
+  document.getElementById('presupuesto-costo').value = '';
+  document.getElementById('presupuesto-precio').value = '';
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), '');
   setImagenesTemp('presupuesto', []);
   updatePresupuestoComisionPreview();
