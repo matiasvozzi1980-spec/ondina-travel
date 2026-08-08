@@ -2671,34 +2671,16 @@ function mensajeAlertaVencimiento(f){
   const detalleTxt = detalles.length ? ('\n' + detalles.join('\n')) : '';
   return `Hola ${f.clienteNombre || ''}! Te escribimos de Ondina Travel por tu file #${f.fileNo} (${f.destino}), que ${estadoTxt} (${f.vencimiento ? fmtFechaCorta(f.vencimiento) : '—'}).${detalleTxt}\n\n¿Podemos coordinar el pago?`;
 }
-function abrirWhatsAppChat(numero){
-  numero = (numero || '').replace(/\D/g,'');
-  const isApple = /iPad|iPhone|Mac/.test(navigator.userAgent) || navigator.platform === 'MacIntel';
-  if(isApple){
-    window.location.href = 'whatsapp://send?phone=' + numero;
-    setTimeout(function(){ window.open('https://web.whatsapp.com/send?phone=' + numero, '_blank'); }, 2000);
-  } else {
-    window.open('https://wa.me/' + numero, '_blank');
-  }
-}
 async function enviarAlertaVencimientoWA(fileId){
   const f = state.files.find(x=>x.id===fileId);
   if(!f) return;
   const mensaje = mensajeAlertaVencimiento(f);
-  let numero = (f.clienteTelefono || '').replace(/\D/g,'');
-  if(!numero){
-    const input = prompt(`No hay teléfono cargado para ${clienteNombreCompleto(f)}.\nIngresá el número con código de país (ej: 5491122334455):`);
-    if(!input) return;
-    numero = input.replace(/\D/g,'');
-    if(!numero){ toast('Número inválido.', 'error'); return; }
-  }
   try{
     await navigator.clipboard.writeText(mensaje);
     toast('Mensaje copiado — pegalo en el chat de WhatsApp con ⌘V / Ctrl+V.', 'success');
   }catch(e){
     toast('No se pudo copiar el mensaje automáticamente. Copialo manualmente antes de escribir.', 'error');
   }
-  abrirWhatsAppChat(numero);
 }
 
 /* ====================================================================
