@@ -928,6 +928,30 @@
     </div>
   </div>
 
+  <!-- MODAL: ELEGIR DE QUÉ FILE DEL MISMO CLIENTE USAR EL SALDO A FAVOR -->
+  <div id="modal-usar-credito-cliente" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="flex justify-between items-center mb-3">
+        <h3 id="usar-credito-cliente-title" class="font-display text-xl">Usar saldo a favor del cliente</h3>
+        <button onclick="closeUsarCreditoClienteModal()" class="text-2xl leading-none">&times;</button>
+      </div>
+      <p class="text-sm opacity-70 mb-1">Saldo pendiente en este file: <span id="usar-credito-cliente-pendiente" class="font-mono-num font-semibold"></span></p>
+      <p class="text-xs opacity-50 mb-4">Elegí de qué otro file del mismo cliente tomar el crédito. No se moverá dinero de ninguna caja.</p>
+      <div class="overflow-x-auto bg-white border border-line rounded-xl">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
+              <th class="py-2 px-3">Origen del crédito</th>
+              <th class="py-2 px-3 text-right">Disponible</th>
+              <th class="py-2 px-3">Usar</th>
+            </tr>
+          </thead>
+          <tbody id="usar-credito-cliente-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <section id="tab-caja" class="tab-section hidden">
     <h2 class="font-display text-2xl mb-4">Caja, ingresos y gastos</h2>
 
@@ -1713,6 +1737,7 @@ service cloud.firestore {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <form id="form-cobro" class="border border-line rounded-lg p-3 bg-white">
           <p class="font-display mb-2">Registrar cobro de cliente</p>
+          <div id="cobro-credito-info" class="text-sm mb-2 hidden"></div>
           <label class="label">Monto (<span id="cobro-moneda-label">USD</span>)</label>
           <input type="number" step="0.01" min="0" id="cobro-monto" required class="input mb-2">
           <label class="label">Caja receptora</label>
@@ -1722,6 +1747,7 @@ service cloud.firestore {
           <label class="label">Tipo de cambio (opcional)</label>
           <input type="number" step="0.01" min="0" id="cobro-tc" placeholder="Solo informativo" class="input mb-2">
           <button type="submit" class="btn-primary w-full">Registrar cobro</button>
+          <button type="button" id="btn-usar-credito-cliente" class="btn-ghost w-full mt-2 hidden" onclick="abrirUsarCreditoClienteModal()"></button>
           <button type="button" id="btn-consolidar-saldo" class="btn-ghost w-full mt-2 hidden solo-admin-accion" onclick="consolidarSaldoCliente(currentFileId)"></button>
         </form>
         <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
@@ -4266,6 +4292,38 @@ function descontarFuenteCredito(fuente, monto){
 }
 
 /* ====================================================================
+   SALDO A FAVOR DE UN CLIENTE, ENTRE FILES DEL MISMO CLIENTE
+   (si en un file el cliente pagó de más, saldoCliente queda negativo.
+   Ese excedente se puede aplicar como cobro en otro file del mismo
+   cliente, sin mover cajas.)
+==================================================================== */
+function fuentesCreditoCliente(clienteId, moneda, excludeFileId){
+  if(!clienteId) return [];
+  const fuentes = [];
+  state.files.forEach(f=>{
+    if(f.clienteId === clienteId && f.moneda === moneda && f.id !== excludeFileId && f.saldoCliente < 0){
+      fuentes.push({
+        tipo: 'file',
+        fileId: f.id,
+        descripcion: `File #${f.fileNo} — ${esc(f.destino || '')}`,
+        disponible: -f.saldoCliente,
+        fecha: f.fecha
+      });
+    }
+  });
+  fuentes.sort((a,b)=> String(a.fecha).localeCompare(String(b.fecha)));
+  return fuentes;
+}
+function creditoClienteDisponible(clienteId, moneda, excludeFileId){
+  return fuentesCreditoCliente(clienteId, moneda, excludeFileId).reduce((sum, s) => sum + s.disponible, 0);
+}
+function descontarFuenteCreditoCliente(fuente, monto){
+  const origen = state.files.find(x => x.id === fuente.fileId);
+  if(origen) origen.saldoCliente += monto;
+  return { tipo: 'file', fileId: fuente.fileId, monto };
+}
+
+/* ====================================================================
    MODAL: DETALLE DE FILE (cobros / pagos / vencimiento)
 ==================================================================== */
 function openDetail(id){
@@ -4325,6 +4383,21 @@ function openDetail(id){
     creditoInfo.classList.add('hidden');
     creditoInfo.innerHTML = '';
     btnCredito.classList.add('hidden');
+  }
+
+  const creditoCliente = creditoClienteDisponible(f.clienteId, f.moneda, f.id);
+  const creditoClienteInfo = document.getElementById('cobro-credito-info');
+  const btnCreditoCliente = document.getElementById('btn-usar-credito-cliente');
+  if(creditoCliente > 0 && f.saldoCliente > 0){
+    creditoClienteInfo.classList.remove('hidden');
+    creditoClienteInfo.innerHTML = `Saldo a favor disponible de <strong>${esc(clienteNombreCompleto(f))}</strong> en otros files: <span class="font-mono-num" style="color:var(--green)">${fmt(creditoCliente, f.moneda)}</span>`;
+    const aplicarCliente = Math.min(creditoCliente, f.saldoCliente);
+    btnCreditoCliente.classList.remove('hidden');
+    btnCreditoCliente.textContent = `Usar saldo a favor del cliente (${fmt(aplicarCliente, f.moneda)})`;
+  } else {
+    creditoClienteInfo.classList.add('hidden');
+    creditoClienteInfo.innerHTML = '';
+    btnCreditoCliente.classList.add('hidden');
   }
 
   const btnConsolidar = document.getElementById('btn-consolidar-saldo');
@@ -4602,6 +4675,79 @@ function usarCreditoDeFuente(index){
   }
 }
 
+function abrirUsarCreditoClienteModal(){
+  const f = state.files.find(x=>x.id===currentFileId);
+  if(!f) return;
+  if(f.saldoCliente <= 0){ toast('Este file no tiene saldo pendiente del cliente.', 'error'); return; }
+  const credito = creditoClienteDisponible(f.clienteId, f.moneda, f.id);
+  if(credito <= 0){ toast('No hay saldo a favor disponible para este cliente en otros files.', 'error'); return; }
+  document.getElementById('usar-credito-cliente-title').textContent = `Usar saldo a favor — ${clienteNombreCompleto(f)}`;
+  renderUsarCreditoClienteTbody();
+  document.getElementById('modal-usar-credito-cliente').classList.remove('hidden');
+}
+function closeUsarCreditoClienteModal(){
+  document.getElementById('modal-usar-credito-cliente').classList.add('hidden');
+}
+function renderUsarCreditoClienteTbody(){
+  const f = state.files.find(x=>x.id===currentFileId);
+  const tbody = document.getElementById('usar-credito-cliente-tbody');
+  if(!f || !tbody) return;
+  const pendiente = Math.max(redondear2(f.saldoCliente), 0);
+  document.getElementById('usar-credito-cliente-pendiente').textContent = fmt(pendiente, f.moneda);
+  if(pendiente <= 0){
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">Este file ya no tiene saldo pendiente del cliente.</td></tr>`;
+    return;
+  }
+  const fuentes = fuentesCreditoCliente(f.clienteId, f.moneda, f.id);
+  if(fuentes.length === 0){
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">No hay saldo a favor disponible para este cliente en otros files.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = fuentes.map((s, i) => `
+    <tr class="border-b border-line hover-bg-paper transition">
+      <td class="py-2 px-3">${esc(s.descripcion)}</td>
+      <td class="py-2 px-3 font-mono-num text-right" style="color:#3730A3">${fmt(s.disponible, f.moneda)}</td>
+      <td class="py-2 px-3"><button onclick="usarCreditoClienteDeFuente(${i})" class="btn-mini">Usar de aquí</button></td>
+    </tr>
+  `).join('');
+}
+function usarCreditoClienteDeFuente(index){
+  const f = state.files.find(x=>x.id===currentFileId);
+  if(!f) return;
+  const pendiente = Math.max(redondear2(f.saldoCliente), 0);
+  if(pendiente <= 0){ closeUsarCreditoClienteModal(); openDetail(f.id); return; }
+  const fuentes = fuentesCreditoCliente(f.clienteId, f.moneda, f.id);
+  const s = fuentes[index];
+  if(!s) return;
+  const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
+  const input = prompt(`¿Cuánto usar de "${s.descripcion}"?\nDisponible: ${fmt(s.disponible, f.moneda)} — Máximo aplicable: ${fmt(maxAplicable, f.moneda)}`, maxAplicable.toFixed(2));
+  if(input === null) return;
+  let monto = parseFloat(input);
+  if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
+  monto = redondear2(Math.min(monto, maxAplicable));
+
+  const fuenteDetalle = descontarFuenteCreditoCliente(s, monto);
+  f.saldoCliente = redondear2(f.saldoCliente - monto);
+
+  state.movs.push({
+    id: Date.now(),
+    fecha: todayStr(),
+    fileId: f.id,
+    fileNo: f.fileNo,
+    concepto: `Cobro a cliente con saldo a favor — File #${f.fileNo} (${clienteNombreCompleto(f)}) — ${s.descripcion}`,
+    monto, moneda: f.moneda, tipo: 'ingreso', caja: null, categoria: 'credito-cliente',
+    creditoFuentes: [fuenteDetalle]
+  });
+  save();
+  openDetail(f.id);
+  const pendienteRestante = Math.max(redondear2(f.saldoCliente), 0);
+  if(pendienteRestante > 0 && creditoClienteDisponible(f.clienteId, f.moneda, f.id) > 0){
+    renderUsarCreditoClienteTbody();
+  } else {
+    closeUsarCreditoClienteModal();
+  }
+}
+
 function consolidarSaldoCliente(fileId){
   const f = state.files.find(x=>x.id===fileId);
   if(!f) return;
@@ -4825,6 +4971,13 @@ function revertirEfectoMov(m){
       }
     });
   }
+  if(m.categoria === 'credito-cliente'){
+    f.saldoCliente += m.monto;
+    (m.creditoFuentes || []).forEach(src=>{
+      const origen = state.files.find(x=>x.id===src.fileId);
+      if(origen) origen.saldoCliente -= src.monto;
+    });
+  }
 }
 function aplicarEfectoMov(m){
   if(!m.fileId) return;
@@ -4865,6 +5018,26 @@ function aplicarEfectoMov(m){
     f.saldoMayorista -= (m.monto - restante);
     m.creditoFuentes = fuentesNuevas;
   }
+  if(m.categoria === 'credito-cliente'){
+    // Vuelve a tomar el crédito de las mismas fuentes que tenía originalmente,
+    // si todavía tienen saldo a favor suficiente; el resto queda como saldo pendiente normal.
+    let restante = m.monto;
+    const fuentesNuevas = [];
+    (m.creditoFuentes || []).forEach(src=>{
+      if(restante <= 0) return;
+      const origen = state.files.find(x=>x.id===src.fileId);
+      if(!origen) return;
+      const disponible = Math.max(0, -origen.saldoCliente);
+      const usar = Math.min(disponible, restante, src.monto);
+      if(usar > 0){
+        origen.saldoCliente += usar;
+        fuentesNuevas.push({ tipo:'file', fileId: src.fileId, monto: usar });
+        restante -= usar;
+      }
+    });
+    f.saldoCliente -= (m.monto - restante);
+    m.creditoFuentes = fuentesNuevas;
+  }
 }
 
 /* ====================================================================
@@ -4889,7 +5062,7 @@ function openEditMovModal(id){
     cajaWrap.classList.add('hidden');
   }
 
-  if(m.categoria === 'cobro' || m.categoria === 'pago' || m.categoria === 'credito-mayorista'){
+  if(m.categoria === 'cobro' || m.categoria === 'pago' || m.categoria === 'credito-mayorista' || m.categoria === 'credito-cliente'){
     info.textContent = 'Este movimiento está asociado a un file. Si cambiás el monto, el saldo pendiente del file se ajustará automáticamente.';
   } else {
     info.textContent = '';
@@ -4918,6 +5091,10 @@ document.getElementById('mov-form').addEventListener('submit', function(e){
   }
   if(m.categoria === 'credito-mayorista' && moneda !== m.moneda){
     toast('No se puede cambiar la moneda de un movimiento de saldo a favor con mayorista.', 'error');
+    return;
+  }
+  if(m.categoria === 'credito-cliente' && moneda !== m.moneda){
+    toast('No se puede cambiar la moneda de un movimiento de saldo a favor del cliente.', 'error');
     return;
   }
 
