@@ -4327,6 +4327,7 @@ function descontarFuenteCreditoCliente(fuente, monto){
    MODAL: DETALLE DE FILE (cobros / pagos / vencimiento)
 ==================================================================== */
 function openDetail(id){
+  console.log('[DEBUG] openDetail(', id, ')');
   currentFileId = id;
   const f = state.files.find(x=>x.id===id);
   if(!f) return;
@@ -4542,6 +4543,7 @@ document.addEventListener('keydown', function(e){
   }
 });
 function closeDetailModal(){
+  console.log('[DEBUG] closeDetailModal() llamado — esto pone currentFileId en null'); console.trace();
   document.getElementById('modal-detail').classList.add('hidden');
   currentFileId = null;
   selectedListadoId = null;
@@ -4690,6 +4692,7 @@ function abrirUsarCreditoClienteModal(){
   document.getElementById('usar-credito-cliente-title').textContent = `Usar saldo a favor — ${clienteNombreCompleto(f)}`;
   renderUsarCreditoClienteTbody();
   document.getElementById('modal-usar-credito-cliente').classList.remove('hidden');
+  console.log('[DEBUG] modal-usar-credito-cliente ABIERTO con currentFileId=', currentFileId);
 }
 function closeUsarCreditoClienteModal(){
   document.getElementById('modal-usar-credito-cliente').classList.add('hidden');
