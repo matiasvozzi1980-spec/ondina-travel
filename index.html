@@ -4725,18 +4725,26 @@ function renderUsarCreditoClienteTbody(){
   }).join('');
 }
 function usarCreditoClienteDeFuente(index){
+  console.log('[DEBUG usarCreditoClienteDeFuente] click recibido, index=', index, 'currentFileId=', currentFileId);
   const f = state.files.find(x=>x.id===currentFileId);
-  if(!f) return;
+  console.log('[DEBUG] file encontrado?', !!f, f);
+  if(!f){ console.log('[DEBUG] SALIDA: no se encontró el file, currentFileId=', currentFileId); return; }
   const pendiente = Math.max(redondear2(f.saldoCliente), 0);
-  if(pendiente <= 0){ closeUsarCreditoClienteModal(); openDetail(f.id); return; }
+  console.log('[DEBUG] pendiente=', pendiente);
+  if(pendiente <= 0){ console.log('[DEBUG] SALIDA: pendiente <= 0'); closeUsarCreditoClienteModal(); openDetail(f.id); return; }
   const fuentes = fuentesCreditoCliente(f.clienteId, f.moneda, f.id);
+  console.log('[DEBUG] fuentes=', fuentes);
   const s = fuentes[index];
-  if(!s) return;
+  console.log('[DEBUG] fuente elegida (index='+index+')=', s);
+  if(!s){ console.log('[DEBUG] SALIDA: no se encontró la fuente en el índice', index); return; }
   const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
   const inputEl = document.getElementById('usar-credito-cliente-monto-' + index);
+  console.log('[DEBUG] inputEl=', inputEl, 'value=', inputEl ? inputEl.value : null);
   let monto = parseFloat(inputEl ? inputEl.value : maxAplicable);
-  if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
+  console.log('[DEBUG] monto parseado=', monto, 'maxAplicable=', maxAplicable);
+  if(isNaN(monto) || monto <= 0){ console.log('[DEBUG] SALIDA: monto inválido'); toast('Ingresá un monto válido.', 'error'); return; }
   monto = redondear2(Math.min(monto, maxAplicable));
+  console.log('[DEBUG] monto final a aplicar=', monto, '— continuando con el guardado...');
 
   const fuenteDetalle = descontarFuenteCreditoCliente(s, monto);
   f.saldoCliente = redondear2(f.saldoCliente - monto);
