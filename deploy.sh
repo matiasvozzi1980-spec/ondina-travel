@@ -23,14 +23,21 @@ echo "📦 Preparando commit..."
 git add index.html viewer.html manifest.json apple-touch-icon.png icon-192.png icon-512.png
 
 if git diff --cached --quiet; then
-  echo "ℹ️  No hay cambios para desplegar."
-  exit 0
+  echo "ℹ️  No hay cambios nuevos para commitear (pero igual voy a intentar subir lo que ya esté commiteado, por si quedó pendiente)."
+else
+  MSG="${1:-Deploy $(date '+%Y-%m-%d %H:%M')}"
+  git commit -m "$MSG"
 fi
 
-MSG="${1:-Deploy $(date '+%Y-%m-%d %H:%M')}"
-git commit -m "$MSG"
-
 echo "🚀 Subiendo a GitHub..."
+set +e
 git push origin main
+PUSH_STATUS=$?
+set -e
+
+if [ $PUSH_STATUS -ne 0 ]; then
+  echo "❌ ERROR: no se pudo subir a GitHub (mirá el mensaje de git arriba)."
+  exit 1
+fi
 
 echo "✅ Deploy completo: https://matiasvozzi1980-spec.github.io/ondina-travel/"
