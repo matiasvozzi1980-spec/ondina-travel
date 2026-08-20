@@ -4630,13 +4630,20 @@ function renderUsarCreditoTbody(){
     tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">No hay saldo a favor disponible con este mayorista.</td></tr>`;
     return;
   }
-  tbody.innerHTML = fuentes.map((s, i) => `
+  tbody.innerHTML = fuentes.map((s, i) => {
+    const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
+    return `
     <tr class="border-b border-line hover-bg-paper transition">
       <td class="py-2 px-3">${esc(s.descripcion)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:#3730A3">${fmt(s.disponible, f.moneda)}</td>
-      <td class="py-2 px-3"><button onclick="usarCreditoDeFuente(${i})" class="btn-mini">Usar de aquí</button></td>
-    </tr>
-  `).join('');
+      <td class="py-2 px-3">
+        <div class="flex items-center gap-1">
+          <input type="number" step="0.01" min="0.01" max="${maxAplicable}" value="${maxAplicable.toFixed(2)}" id="usar-credito-monto-${i}" class="input" style="width:100px; padding:4px 6px;">
+          <button onclick="usarCreditoDeFuente(${i})" class="btn-mini">Usar</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 }
 function usarCreditoDeFuente(index){
   const f = state.files.find(x=>x.id===currentFileId);
@@ -4647,9 +4654,8 @@ function usarCreditoDeFuente(index){
   const s = fuentes[index];
   if(!s) return;
   const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
-  const input = prompt(`¿Cuánto usar de "${s.descripcion}"?\nDisponible: ${fmt(s.disponible, f.moneda)} — Máximo aplicable: ${fmt(maxAplicable, f.moneda)}`, maxAplicable.toFixed(2));
-  if(input === null) return;
-  let monto = parseFloat(input);
+  const inputEl = document.getElementById('usar-credito-monto-' + index);
+  let monto = parseFloat(inputEl ? inputEl.value : maxAplicable);
   if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
   monto = redondear2(Math.min(monto, maxAplicable));
 
@@ -4703,13 +4709,20 @@ function renderUsarCreditoClienteTbody(){
     tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-sm opacity-50">No hay saldo a favor disponible para este cliente en otros files.</td></tr>`;
     return;
   }
-  tbody.innerHTML = fuentes.map((s, i) => `
+  tbody.innerHTML = fuentes.map((s, i) => {
+    const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
+    return `
     <tr class="border-b border-line hover-bg-paper transition">
       <td class="py-2 px-3">${esc(s.descripcion)}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:#3730A3">${fmt(s.disponible, f.moneda)}</td>
-      <td class="py-2 px-3"><button onclick="usarCreditoClienteDeFuente(${i})" class="btn-mini">Usar de aquí</button></td>
-    </tr>
-  `).join('');
+      <td class="py-2 px-3">
+        <div class="flex items-center gap-1">
+          <input type="number" step="0.01" min="0.01" max="${maxAplicable}" value="${maxAplicable.toFixed(2)}" id="usar-credito-cliente-monto-${i}" class="input" style="width:100px; padding:4px 6px;">
+          <button onclick="usarCreditoClienteDeFuente(${i})" class="btn-mini">Usar</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 }
 function usarCreditoClienteDeFuente(index){
   const f = state.files.find(x=>x.id===currentFileId);
@@ -4720,9 +4733,8 @@ function usarCreditoClienteDeFuente(index){
   const s = fuentes[index];
   if(!s) return;
   const maxAplicable = redondear2(Math.min(s.disponible, pendiente));
-  const input = prompt(`¿Cuánto usar de "${s.descripcion}"?\nDisponible: ${fmt(s.disponible, f.moneda)} — Máximo aplicable: ${fmt(maxAplicable, f.moneda)}`, maxAplicable.toFixed(2));
-  if(input === null) return;
-  let monto = parseFloat(input);
+  const inputEl = document.getElementById('usar-credito-cliente-monto-' + index);
+  let monto = parseFloat(inputEl ? inputEl.value : maxAplicable);
   if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
   monto = redondear2(Math.min(monto, maxAplicable));
 
