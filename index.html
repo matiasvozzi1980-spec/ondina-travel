@@ -1638,6 +1638,14 @@ service cloud.firestore {
         <input type="text" id="presupuesto-destino" required class="input" placeholder="Ej: Cancún, Bariloche...">
       </div>
       <div>
+        <label class="label">Tipo de viaje</label>
+        <select id="presupuesto-tipo-viaje" class="input">
+          <option value="">— Seleccionar —</option>
+          <option value="Aéreo">Aéreo</option>
+          <option value="Terrestre">Terrestre</option>
+        </select>
+      </div>
+      <div>
         <label class="label">Mayorista</label>
         <select id="presupuesto-mayorista" class="input" onchange="onMayoristaSelectChange(this)"></select>
       </div>
@@ -3221,6 +3229,7 @@ async function generarPdfPresupuesto(id){
     '<table style="width:100%;border-collapse:collapse;margin-bottom:22px;">' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
+      (p.tipoViaje ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Tipo de viaje</td><td style="padding:6px 0;font-size:14px;">' + esc(p.tipoViaje) + '</td></tr>' : '') +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
     '</table>' +
 
@@ -4209,6 +4218,7 @@ function openPresupuestoModal(){
   document.getElementById('presupuesto-moneda').value = 'USD';
   document.getElementById('presupuesto-costo').value = '';
   document.getElementById('presupuesto-precio').value = '';
+  document.getElementById('presupuesto-tipo-viaje').value = '';
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), '');
   setImagenesTemp('presupuesto', []);
   updatePresupuestoComisionPreview();
@@ -4226,6 +4236,7 @@ function openEditPresupuestoModal(id){
   document.getElementById('presupuesto-cliente-dni').value = p.clienteDni || '';
   document.getElementById('presupuesto-cliente-telefono').value = p.clienteTelefono || '';
   document.getElementById('presupuesto-destino').value = p.destino || '';
+  document.getElementById('presupuesto-tipo-viaje').value = p.tipoViaje || '';
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), p.mayorista || '');
   document.getElementById('presupuesto-moneda').value = p.moneda;
   document.getElementById('presupuesto-costo').value = p.costoNeto;
@@ -4266,6 +4277,7 @@ document.getElementById('presupuesto-form').addEventListener('submit', function(
     clienteDni: document.getElementById('presupuesto-cliente-dni').value.trim(),
     clienteTelefono: document.getElementById('presupuesto-cliente-telefono').value.trim(),
     destino,
+    tipoViaje: document.getElementById('presupuesto-tipo-viaje').value,
     mayorista: document.getElementById('presupuesto-mayorista').value.trim(),
     moneda: document.getElementById('presupuesto-moneda').value,
     costoNeto: parseFloat(document.getElementById('presupuesto-costo').value) || 0,
