@@ -4341,7 +4341,7 @@ function renderPresupuestos(){
           ? (p.fileIdConvertido ? `<button onclick="switchTab('${currentUserRole === 'vendedor' ? 'listado' : 'files'}'); openDetail(${p.fileIdConvertido});" class="btn-mini">Ver file</button>`
              : '<span class="opacity-40 text-xs">Convertido</span>')
           : `<button onclick="convertirPresupuestoAFile(${p.id})" class="btn-mini">Convertir a file</button>
-             ${currentUserRole !== 'vendedor' ? `<button onclick="openEditPresupuestoModal(${p.id})" class="btn-mini">Editar</button>` : ''}`}
+             ${(currentUserRole !== 'vendedor' || p.vendedorNombre === currentUserNombre) ? `<button onclick="openEditPresupuestoModal(${p.id})" class="btn-mini">Editar</button>` : ''}`}
         ${currentUserRole !== 'vendedor' ? `<button onclick="deletePresupuesto(${p.id})" class="btn-mini btn-mini-danger">Eliminar</button>` : ''}
       </td>
     </tr>
