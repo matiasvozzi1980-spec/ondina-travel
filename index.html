@@ -443,6 +443,7 @@
         <input type="date" id="dash-custom-desde" class="input w-auto" onchange="setDashCustomRange()">
         <span class="text-xs opacity-50">hasta</span>
         <input type="date" id="dash-custom-hasta" class="input w-auto" onchange="setDashCustomRange()">
+        <button type="button" class="btn-ghost" onclick="verTodoDash()">Ver todo (incluye sin fecha)</button>
       </div>
       <div class="flex border border-line rounded-lg overflow-hidden">
         <button class="toggle-btn active" data-currency="USD" onclick="setDashCurrency('USD')">USD</button>
@@ -1976,6 +1977,7 @@ function initDashPeriodo(){
 }
 function periodLabel(){
   const { desde, hasta } = periodRange();
+  if(!desde && !hasta) return 'Mostrando todos los períodos (incluye files sin fecha).';
   if(!desde || !hasta) return 'Elegí las dos fechas para ver el período.';
   return 'Mostrando del ' + fmtFechaCorta(desde) + ' al ' + fmtFechaCorta(hasta);
 }
@@ -2330,6 +2332,15 @@ function setDashCustomRange(){
   const hastaEl = document.getElementById('dash-custom-hasta');
   dashDesdeCustom = desdeEl ? desdeEl.value : null;
   dashHastaCustom = hastaEl ? hastaEl.value : null;
+  renderDashboard();
+}
+function verTodoDash(){
+  dashDesdeCustom = null;
+  dashHastaCustom = null;
+  const desdeEl = document.getElementById('dash-custom-desde');
+  const hastaEl = document.getElementById('dash-custom-hasta');
+  if(desdeEl) desdeEl.value = '';
+  if(hastaEl) hastaEl.value = '';
   renderDashboard();
 }
 
