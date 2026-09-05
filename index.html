@@ -103,6 +103,8 @@
   .th-sort::after{ content:' ⇅'; opacity:0.3; font-size:0.75em; }
   .th-sort.sort-asc::after{ content:' ▲'; opacity:1; }
   .th-sort.sort-desc::after{ content:' ▼'; opacity:1; }
+  th[draggable="true"]{ cursor:grab; }
+  th[draggable="true"].col-dragging{ opacity:0.4; }
 
   /* Selected row in listado */
   .row-selected{ background:#1F2937 !important; color:#fff; }
@@ -540,33 +542,19 @@
           <option value="sin-deuda">Sin saldos pendientes</option>
           <option value="vencidos">Vencidos</option>
         </select>
+        <button onclick="resetColumnas('files')" class="btn-ghost" title="Volver al orden de columnas original">↺ Columnas</button>
         <button onclick="openFileModal()" class="btn-primary">+ Nuevo file</button>
       </div>
     </div>
     <div class="overflow-x-auto bg-white rounded-xl border border-line">
       <table class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="fileNo">Nº</th>
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="fecha">Fecha</th>
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="cliente">Cliente</th>
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="destino">Destino</th>
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="mayorista">Mayorista</th>
-            <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="costoNeto">Costo neto</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="precioVenta">Precio venta</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="comision">Comisión</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="saldoCliente">Saldo cliente</th>
-            <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="files" data-col="saldoMayorista">Saldo mayorista</th>
-            <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3 th-sort" data-table="files" data-col="vencimiento">Vencimiento</th>
-          </tr>
+          <tr id="files-thead-row" class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line"></tr>
         </thead>
         <tbody id="files-tbody"></tbody>
       </table>
     </div>
-    <p class="text-xs opacity-50 mt-2">Tocá una fila para ver el detalle, registrar cobros del cliente, pagos al mayorista o ajustar la fecha de vencimiento.</p>
+    <p class="text-xs opacity-50 mt-2">Tocá una fila para ver el detalle, registrar cobros del cliente, pagos al mayorista o ajustar la fecha de vencimiento. Arrastrá los encabezados de columna para reordenarlas.</p>
   </section>
 
   <!-- ============ LISTADO DE FILES ============ -->
@@ -625,29 +613,16 @@
         <label class="label">Fecha hasta</label>
         <input type="date" id="listado-hasta" onchange="renderListado()" class="input">
       </div>
-      <div class="flex items-end">
+      <div class="flex items-end gap-2">
         <button onclick="resetListadoFiltros()" class="btn-ghost w-full">Limpiar filtros</button>
+        <button onclick="resetColumnas('listado')" class="btn-ghost" title="Volver al orden de columnas original">↺</button>
       </div>
     </div>
+    <p class="text-xs opacity-50 mb-2">Arrastrá los encabezados de columna para reordenarlas.</p>
     <div class="overflow-x-auto bg-white rounded-xl border border-line">
       <table class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line">
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="fileNo">Nº</th>
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="fecha">Fecha</th>
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="cliente">Cliente</th>
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="destino">Destino</th>
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="mayorista">Mayorista</th>
-            <th class="py-2 px-3">Moneda</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="costoNeto">Costo neto</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="precioVenta">Precio venta</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="comision">Comisión</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="saldoCliente">Saldo cliente</th>
-            <th class="py-2 px-3">Estado cliente</th>
-            <th class="py-2 px-3 text-right th-sort" data-table="listado" data-col="saldoMayorista">Saldo mayorista</th>
-            <th class="py-2 px-3">Estado mayorista</th>
-            <th class="py-2 px-3 th-sort" data-table="listado" data-col="vencimiento">Vencimiento</th>
-          </tr>
+          <tr id="listado-thead-row" class="text-left text-xs uppercase tracking-wider opacity-50 border-b border-line"></tr>
         </thead>
         <tbody id="listado-tbody"></tbody>
       </table>
@@ -1850,6 +1825,107 @@ function saveSortState(s){
 let sortState = SORT_DEFAULTS; // se sobreescribe en startApp después de cargar storage
 
 /* ====================================================================
+   ORDEN DE COLUMNAS DE LAS TABLAS DE FILES — arrastrar para reordenar,
+   persistido en localStorage
+==================================================================== */
+const COLUMNAS_KEY = 'ondina_columnas_state';
+const FILE_COLUMN_ORDER_DEFAULT = ['fileNo','fecha','cliente','destino','mayorista','moneda','costoNeto','precioVenta','comision','saldoCliente','estadoCliente','saldoMayorista','estadoMayorista','vencimiento'];
+const FILE_COLUMN_DEFS = {
+  fileNo:          { label: 'Nº', sortable: true, align: 'left' },
+  fecha:           { label: 'Fecha', sortable: true, align: 'left' },
+  cliente:         { label: 'Cliente', sortable: true, align: 'left' },
+  destino:         { label: 'Destino', sortable: true, align: 'left' },
+  mayorista:       { label: 'Mayorista', sortable: true, align: 'left' },
+  moneda:          { label: 'Moneda', sortable: false, align: 'left' },
+  costoNeto:       { label: 'Costo neto', sortable: true, align: 'right' },
+  precioVenta:     { label: 'Precio venta', sortable: true, align: 'right' },
+  comision:        { label: 'Comisión', sortable: true, align: 'right' },
+  saldoCliente:    { label: 'Saldo cliente', sortable: true, align: 'right' },
+  estadoCliente:   { label: 'Estado cliente', sortable: false, align: 'left' },
+  saldoMayorista:  { label: 'Saldo mayorista', sortable: true, align: 'right' },
+  estadoMayorista: { label: 'Estado mayorista', sortable: false, align: 'left' },
+  vencimiento:     { label: 'Vencimiento', sortable: true, align: 'left' }
+};
+function normalizarOrdenColumnas(order){
+  const validas = (Array.isArray(order) ? order : []).filter(c => FILE_COLUMN_DEFS[c]);
+  FILE_COLUMN_ORDER_DEFAULT.forEach(c => { if(!validas.includes(c)) validas.push(c); });
+  return validas;
+}
+function loadColumnasState(){
+  let data;
+  try{ data = JSON.parse(storageGet(COLUMNAS_KEY) || 'null') || {}; }
+  catch(e){ data = {}; }
+  return {
+    files: normalizarOrdenColumnas(data.files),
+    listado: normalizarOrdenColumnas(data.listado)
+  };
+}
+function saveColumnasState(s){
+  storageSet(COLUMNAS_KEY, JSON.stringify(s));
+}
+let columnasState = { files: FILE_COLUMN_ORDER_DEFAULT.slice(), listado: FILE_COLUMN_ORDER_DEFAULT.slice() }; // se sobreescribe en startApp
+let columnaArrastrada = null;
+
+function renderTableHeader(table){
+  const row = document.getElementById(table + '-thead-row');
+  if(!row) return;
+  const order = columnasState[table] || FILE_COLUMN_ORDER_DEFAULT;
+  row.innerHTML = order.map(col => {
+    const def = FILE_COLUMN_DEFS[col];
+    if(!def) return '';
+    const alignClass = def.align === 'right' ? ' text-right' : '';
+    const sortClass = def.sortable ? ' th-sort' : '';
+    const dataAttrs = def.sortable ? ` data-table="${table}" data-col="${col}"` : '';
+    return `<th class="py-2 px-3${alignClass}${sortClass}" draggable="true" data-drag-col="${col}" title="Arrastrá para reordenar columnas"${dataAttrs}>${esc(def.label)}</th>`;
+  }).join('');
+  row.querySelectorAll('.th-sort').forEach(th => th.addEventListener('click', onSortClick));
+  row.querySelectorAll('th[draggable="true"]').forEach(th => {
+    th.addEventListener('dragstart', onColDragStart);
+    th.addEventListener('dragover', onColDragOver);
+    th.addEventListener('drop', onColDrop);
+    th.addEventListener('dragend', onColDragEnd);
+  });
+  updateSortIndicators(table);
+}
+function onColDragStart(e){
+  columnaArrastrada = { table: e.currentTarget.closest('tr').id.replace('-thead-row',''), col: e.currentTarget.dataset.dragCol };
+  e.currentTarget.classList.add('col-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', columnaArrastrada.col); }catch(err){}
+}
+function onColDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+function onColDrop(e){
+  e.preventDefault();
+  const th = e.currentTarget;
+  const table = th.closest('tr').id.replace('-thead-row','');
+  const destinoCol = th.dataset.dragCol;
+  if(!columnaArrastrada || columnaArrastrada.table !== table || columnaArrastrada.col === destinoCol) return;
+  const order = (columnasState[table] || FILE_COLUMN_ORDER_DEFAULT).slice();
+  const origenIdx = order.indexOf(columnaArrastrada.col);
+  const destinoIdx = order.indexOf(destinoCol);
+  if(origenIdx === -1 || destinoIdx === -1) return;
+  order.splice(origenIdx, 1);
+  order.splice(destinoIdx, 0, columnaArrastrada.col);
+  columnasState[table] = order;
+  saveColumnasState(columnasState);
+  if(table === 'files') renderFilesTable();
+  else if(table === 'listado') renderListado();
+}
+function onColDragEnd(e){
+  e.currentTarget.classList.remove('col-dragging');
+  columnaArrastrada = null;
+}
+function resetColumnas(table){
+  columnasState[table] = FILE_COLUMN_ORDER_DEFAULT.slice();
+  saveColumnasState(columnasState);
+  if(table === 'files') renderFilesTable();
+  else if(table === 'listado') renderListado();
+}
+
+/* ====================================================================
    FILTROS PERSISTENTES ENTRE PESTAÑAS (Mejora 17)
 ==================================================================== */
 const FILTROS_KEY = 'ondina_filtros_state';
@@ -2730,6 +2806,25 @@ async function enviarAlertaVencimientoWA(fileId){
 /* ====================================================================
    FILA COMPARTIDA: FILES Y LISTADO
 ==================================================================== */
+function fileCellHtml(f, col, isSelected){
+  switch(col){
+    case 'fileNo': return `<td class="py-2 px-3 font-mono-num">${f.fileNo}</td>`;
+    case 'fecha': return `<td class="py-2 px-3">${fmtFechaCorta(f.fecha)}</td>`;
+    case 'cliente': return `<td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>`;
+    case 'destino': return `<td class="py-2 px-3">${esc(f.destino)}</td>`;
+    case 'mayorista': return `<td class="py-2 px-3">${esc(f.mayorista || '—')}</td>`;
+    case 'moneda': return `<td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${f.moneda}</span></td>`;
+    case 'costoNeto': return `<td class="py-2 px-3 font-mono-num text-right">${fmt(f.costoNeto, f.moneda)}</td>`;
+    case 'precioVenta': return `<td class="py-2 px-3 font-mono-num text-right">${fmt(f.precioVenta, f.moneda)}</td>`;
+    case 'comision': return `<td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:var(--gold)'}">${fmt(f.comision, f.moneda)}</td>`;
+    case 'saldoCliente': return `<td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoCliente>0?'var(--terracotta)':'inherit')}">${fmt(f.saldoCliente, f.moneda)}</td>`;
+    case 'estadoCliente': return `<td class="py-2 px-3">${estadoBadge(f.saldoCliente, f.precioVenta)}</td>`;
+    case 'saldoMayorista': return `<td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoMayorista>0?'var(--gold)':'inherit')}">${fmt(Math.max(f.saldoMayorista,0), f.moneda)}</td>`;
+    case 'estadoMayorista': return `<td class="py-2 px-3">${estadoBadge(Math.max(f.saldoMayorista,0), f.costoNeto)}</td>`;
+    case 'vencimiento': return `<td class="py-2 px-3">${vencimientoCellHtml(f)}</td>`;
+    default: return '';
+  }
+}
 function fileRowHtml(f, context){
   const isListado = context === 'listado';
   const isSelected = isListado && selectedListadoId === f.id;
@@ -2739,22 +2834,11 @@ function fileRowHtml(f, context){
   const onclick = isListado
     ? `selectListadoRow(${f.id})`
     : `openDetail(${f.id})`;
+  const order = columnasState[context] || FILE_COLUMN_ORDER_DEFAULT;
+  const cells = order.map(col => fileCellHtml(f, col, isSelected)).join('');
   return `
     <tr class="${rowClass}" id="listado-row-${f.id}" onclick="${onclick}">
-      <td class="py-2 px-3 font-mono-num">${f.fileNo}</td>
-      <td class="py-2 px-3">${fmtFechaCorta(f.fecha)}</td>
-      <td class="py-2 px-3">${esc(clienteNombreCompleto(f))}</td>
-      <td class="py-2 px-3">${esc(f.destino)}</td>
-      <td class="py-2 px-3">${esc(f.mayorista || '—')}</td>
-      <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${f.moneda}</span></td>
-      <td class="py-2 px-3 font-mono-num text-right">${fmt(f.costoNeto, f.moneda)}</td>
-      <td class="py-2 px-3 font-mono-num text-right">${fmt(f.precioVenta, f.moneda)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:var(--gold)'}">${fmt(f.comision, f.moneda)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoCliente>0?'var(--terracotta)':'inherit')}">${fmt(f.saldoCliente, f.moneda)}</td>
-      <td class="py-2 px-3">${estadoBadge(f.saldoCliente, f.precioVenta)}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="${isSelected?'':'color:'+(f.saldoMayorista>0?'var(--gold)':'inherit')}">${fmt(Math.max(f.saldoMayorista,0), f.moneda)}</td>
-      <td class="py-2 px-3">${estadoBadge(Math.max(f.saldoMayorista,0), f.costoNeto)}</td>
-      <td class="py-2 px-3">${vencimientoCellHtml(f)}</td>
+      ${cells}
     </tr>`;
 }
 
@@ -2763,6 +2847,7 @@ function fileRowHtml(f, context){
 ==================================================================== */
 function renderFilesTable(){
   persistFiltrosState();
+  renderTableHeader('files');
   const tbody = document.getElementById('files-tbody');
   if(state.files.length === 0){
     tbody.innerHTML = `<tr><td colspan="${FILE_TABLE_COLS}" class="text-center py-6 text-sm opacity-50">Todavía no registraste ningún file. Tocá "+ Nuevo file" para empezar.</td></tr>`;
@@ -2807,6 +2892,7 @@ function resetListadoFiltros(){
 function renderListado(){
   buildMayoristaOptions();
   persistFiltrosState();
+  renderTableHeader('listado');
   const texto = document.getElementById('listado-buscar').value.trim().toLowerCase();
   const mayorista = document.getElementById('listado-mayorista').value;
   const moneda = document.getElementById('listado-moneda').value;
@@ -5812,6 +5898,7 @@ function startApp(){
 
   load();
   sortState = loadSortState();
+  columnasState = loadColumnasState();
   buildAjusteCajas();
   renderGastoCategoriaSelect();
   renderGastoCategoriasConfig();
