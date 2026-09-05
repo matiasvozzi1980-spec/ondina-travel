@@ -2642,6 +2642,7 @@ function renderGastoCategoriaSelect(){
   const prev = sel.value;
   sel.innerHTML = state.gastoCategorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   if(state.gastoCategorias.includes(prev)) sel.value = prev;
+  else if(state.gastoCategorias.includes('Otros')) sel.value = 'Otros';
 }
 function renderGastoCategoriasConfig(){
   const wrap = document.getElementById('gasto-categorias-list');
