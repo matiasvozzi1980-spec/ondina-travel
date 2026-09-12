@@ -1535,6 +1535,10 @@ service cloud.firestore {
         <input type="text" id="file-destino" required class="input" placeholder="Ej: Cancún, Bariloche...">
       </div>
       <div>
+        <label class="label">Cantidad de personas</label>
+        <input type="number" step="1" min="1" id="file-personas" class="input" value="1">
+      </div>
+      <div>
         <label class="label">Mayorista</label>
         <select id="file-mayorista" class="input" onchange="onMayoristaSelectChange(this)"></select>
       </div>
@@ -1585,7 +1589,8 @@ service cloud.firestore {
       </div>
 
       <p class="text-sm bg-paper border border-line rounded-lg p-2">
-        Comisión estimada: <span id="file-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span>
+        Comisión estimada: <span id="file-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span><br>
+        Precio por persona: <span id="file-por-persona-preview" class="font-mono-num font-semibold">US$ 0.00</span>
       </p>
       <button type="submit" class="btn-primary w-full">Guardar file</button>
     </form>
@@ -1646,6 +1651,10 @@ service cloud.firestore {
         </select>
       </div>
       <div>
+        <label class="label">Cantidad de personas</label>
+        <input type="number" step="1" min="1" id="presupuesto-personas" class="input" value="1">
+      </div>
+      <div>
         <label class="label">Mayorista</label>
         <select id="presupuesto-mayorista" class="input" onchange="onMayoristaSelectChange(this)"></select>
       </div>
@@ -1679,7 +1688,8 @@ service cloud.firestore {
       </div>
 
       <p class="text-sm bg-paper border border-line rounded-lg p-2">
-        Comisión estimada: <span id="presupuesto-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span>
+        Comisión estimada: <span id="presupuesto-comision-preview" class="font-mono-num font-semibold">US$ 0.00</span><br>
+        Precio por persona: <span id="presupuesto-por-persona-preview" class="font-mono-num font-semibold">US$ 0.00</span>
       </p>
       <button type="submit" class="btn-primary w-full">Guardar presupuesto</button>
     </form>
@@ -3230,6 +3240,7 @@ async function generarPdfPresupuesto(id){
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
       (p.tipoViaje ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Tipo de viaje</td><td style="padding:6px 0;font-size:14px;">' + esc(p.tipoViaje) + '</td></tr>' : '') +
+      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Cantidad de personas</td><td style="padding:6px 0;font-size:14px;">' + (p.personas || 1) + '</td></tr>' +
       '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
     '</table>' +
 
@@ -3239,9 +3250,17 @@ async function generarPdfPresupuesto(id){
       notasHtml +
     '</div>' +
 
-    '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;background:#FAFAF9;">' +
-      '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
-      '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
+    '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;background:#FAFAF9;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
+        '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
+      '</div>' +
+      ((p.personas || 1) > 1
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #E5E5E5;">' +
+            '<span style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio por persona (' + p.personas + ')</span>' +
+            '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:16px;font-weight:600;">' + fmt(p.precioVenta / p.personas, p.moneda) + '</span>' +
+          '</div>'
+        : '') +
     '</div>' +
 
     '<p style="font-size:10px;color:#9CA3AF;margin-top:30px;text-align:center;border-top:1px solid #E5E5E5;padding-top:14px;">Presupuesto sujeto a disponibilidad y confirmación al momento de la reserva · Ondina Travel</p>';
@@ -3939,6 +3958,7 @@ function openFileModal(presupuesto){
   document.getElementById('file-moneda').value = presupuesto ? presupuesto.moneda : 'USD';
   document.getElementById('file-costo').value = presupuesto ? presupuesto.costoNeto : '';
   document.getElementById('file-precio').value = presupuesto ? presupuesto.precioVenta : '';
+  document.getElementById('file-personas').value = presupuesto ? (presupuesto.personas || 1) : 1;
   document.getElementById('file-vencimiento').value = '';
   document.getElementById('file-tc').value = '';
   document.getElementById('file-credito-mayorista').value = '0';
@@ -3972,6 +3992,7 @@ function openEditFileModal(id){
   document.getElementById('file-cliente-nacimiento').value = f.clienteNacimiento || '';
   document.getElementById('file-cliente-telefono').value = f.clienteTelefono || '';
   document.getElementById('file-destino').value = f.destino || '';
+  document.getElementById('file-personas').value = f.personas || 1;
   renderMayoristaSelect(document.getElementById('file-mayorista'), f.mayorista || '');
   document.getElementById('file-moneda').value = f.moneda;
   document.getElementById('file-costo').value = f.costoNeto;
@@ -4005,11 +4026,14 @@ function updateComisionPreview(){
   const costo = parseFloat(document.getElementById('file-costo').value) || 0;
   const precio = parseFloat(document.getElementById('file-precio').value) || 0;
   const moneda = document.getElementById('file-moneda').value;
+  const personas = parseInt(document.getElementById('file-personas').value) || 1;
   document.getElementById('file-comision-preview').textContent = fmt(precio - costo, moneda);
+  document.getElementById('file-por-persona-preview').textContent = fmt(precio / personas, moneda);
 }
 document.getElementById('file-costo').addEventListener('input', updateComisionPreview);
 document.getElementById('file-precio').addEventListener('input', updateComisionPreview);
 document.getElementById('file-moneda').addEventListener('change', updateComisionPreview);
+document.getElementById('file-personas').addEventListener('input', updateComisionPreview);
 
 document.getElementById('file-form').addEventListener('submit', function(e){
   e.preventDefault();
@@ -4021,6 +4045,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const clienteNacimiento = document.getElementById('file-cliente-nacimiento').value;
   const clienteTelefono = document.getElementById('file-cliente-telefono').value.trim();
   const destino = document.getElementById('file-destino').value.trim();
+  const personas = parseInt(document.getElementById('file-personas').value) || 1;
   const mayorista = document.getElementById('file-mayorista').value.trim();
   const moneda = document.getElementById('file-moneda').value;
   const costoNeto = parseFloat(document.getElementById('file-costo').value) || 0;
@@ -4117,7 +4142,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
           clienteDni: clienteDuplicado.dni,
           clienteNacimiento: clienteDuplicado.nacimiento,
           clienteTelefono: clienteDuplicado.telefono,
-          destino, mayorista, moneda,
+          destino, personas, mayorista, moneda,
           costoNeto, precioVenta,
           comision: precioVenta - costoNeto,
           saldoCliente: precioVenta,
@@ -4162,6 +4187,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     f.clienteNacimiento = clienteNacimiento;
     f.clienteTelefono = clienteTelefono;
     f.destino = destino;
+    f.personas = personas;
     f.mayorista = mayorista;
     f.moneda = moneda;
     f.costoNeto = costoNeto;
@@ -4182,7 +4208,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       id: Date.now(),
       fileNo, fecha,
       clienteId, clienteNombre, clienteApellido, clienteDni, clienteNacimiento, clienteTelefono,
-      destino, mayorista, moneda,
+      destino, personas, mayorista, moneda,
       costoNeto, precioVenta,
       comision: precioVenta - costoNeto,
       saldoCliente: precioVenta,
@@ -4219,6 +4245,7 @@ function openPresupuestoModal(){
   document.getElementById('presupuesto-costo').value = '';
   document.getElementById('presupuesto-precio').value = '';
   document.getElementById('presupuesto-tipo-viaje').value = '';
+  document.getElementById('presupuesto-personas').value = '1';
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), '');
   setImagenesTemp('presupuesto', []);
   updatePresupuestoComisionPreview();
@@ -4237,6 +4264,7 @@ function openEditPresupuestoModal(id){
   document.getElementById('presupuesto-cliente-telefono').value = p.clienteTelefono || '';
   document.getElementById('presupuesto-destino').value = p.destino || '';
   document.getElementById('presupuesto-tipo-viaje').value = p.tipoViaje || '';
+  document.getElementById('presupuesto-personas').value = p.personas || 1;
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), p.mayorista || '');
   document.getElementById('presupuesto-moneda').value = p.moneda;
   document.getElementById('presupuesto-costo').value = p.costoNeto;
@@ -4256,11 +4284,14 @@ function updatePresupuestoComisionPreview(){
   const costo = parseFloat(document.getElementById('presupuesto-costo').value) || 0;
   const precio = parseFloat(document.getElementById('presupuesto-precio').value) || 0;
   const moneda = document.getElementById('presupuesto-moneda').value;
+  const personas = parseInt(document.getElementById('presupuesto-personas').value) || 1;
   document.getElementById('presupuesto-comision-preview').textContent = fmt(precio - costo, moneda);
+  document.getElementById('presupuesto-por-persona-preview').textContent = fmt(precio / personas, moneda);
 }
 document.getElementById('presupuesto-costo').addEventListener('input', updatePresupuestoComisionPreview);
 document.getElementById('presupuesto-precio').addEventListener('input', updatePresupuestoComisionPreview);
 document.getElementById('presupuesto-moneda').addEventListener('change', updatePresupuestoComisionPreview);
+document.getElementById('presupuesto-personas').addEventListener('input', updatePresupuestoComisionPreview);
 
 document.getElementById('presupuesto-form').addEventListener('submit', function(e){
   e.preventDefault();
@@ -4278,6 +4309,7 @@ document.getElementById('presupuesto-form').addEventListener('submit', function(
     clienteTelefono: document.getElementById('presupuesto-cliente-telefono').value.trim(),
     destino,
     tipoViaje: document.getElementById('presupuesto-tipo-viaje').value,
+    personas: parseInt(document.getElementById('presupuesto-personas').value) || 1,
     mayorista: document.getElementById('presupuesto-mayorista').value.trim(),
     moneda: document.getElementById('presupuesto-moneda').value,
     costoNeto: parseFloat(document.getElementById('presupuesto-costo').value) || 0,
@@ -4453,6 +4485,8 @@ function openDetail(id){
     <div><p class="label">Costo neto</p><p class="font-mono-num">${fmt(f.costoNeto, f.moneda)}</p></div>
     <div><p class="label">Precio venta</p><p class="font-mono-num">${fmt(f.precioVenta, f.moneda)}</p></div>
     <div><p class="label">Comisión</p><p class="font-mono-num" style="color:var(--gold)">${fmt(f.comision, f.moneda)}</p></div>
+    ${f.personas ? `<div><p class="label">Cantidad de personas</p><p class="font-mono-num">${f.personas}</p></div>` : ''}
+    ${f.personas && f.personas > 1 ? `<div><p class="label">Precio por persona</p><p class="font-mono-num" style="color:var(--teal)">${fmt(f.precioVenta / f.personas, f.moneda)}</p></div>` : ''}
     ${f.tipoCambio ? `<div><p class="label">Tipo de cambio</p><p class="font-mono-num opacity-70">${f.tipoCambio}</p></div>` : ''}
     <div class="sm:col-span-3"><hr class="border-line my-1"></div>
     <div><p class="label">Cliente</p><p>${esc(clienteNombreCompleto(f))}</p></div>
