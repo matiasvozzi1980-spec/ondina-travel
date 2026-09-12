@@ -1648,6 +1648,7 @@ service cloud.firestore {
           <option value="">— Seleccionar —</option>
           <option value="Aéreo">Aéreo</option>
           <option value="Terrestre">Terrestre</option>
+          <option value="Paquete">Paquete</option>
         </select>
       </div>
       <div>
@@ -3198,6 +3199,60 @@ async function generarComprobante(movId){
    notas e imágenes pegadas. No incluye costo neto, comisión ni mayorista
    (información interna de la agencia).
 ==================================================================== */
+async function capturarBloquePdf(innerHtml){
+  const contenedor = document.createElement('div');
+  contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;font-family:Inter,sans-serif;width:760px;color:#161616;';
+  contenedor.innerHTML = innerHtml;
+  document.body.appendChild(contenedor);
+  try{
+    const imgs = Array.from(contenedor.querySelectorAll('img'));
+    await Promise.all(imgs.map(function(img){
+      if(img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(function(resolve){
+        img.addEventListener('load', resolve, { once:true });
+        img.addEventListener('error', resolve, { once:true });
+      });
+    }));
+    // Pequeña espera extra para que el navegador termine de pintar el layout.
+    await new Promise(function(resolve){ setTimeout(resolve, 60); });
+    const canvas = await html2canvas(contenedor, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false });
+    return canvas;
+  } finally {
+    if(contenedor.parentNode) document.body.removeChild(contenedor);
+  }
+}
+// Agrega un bloque (canvas) al PDF sin nunca cortar su contenido entre dos hojas:
+// si no entra completo en lo que queda de la página actual, arranca una hoja nueva.
+// Si el bloque es más alto que una hoja entera (caso raro, muchas imágenes juntas),
+// ahí sí se corta en pedazos del alto de una página, como último recurso.
+function agregarBloquePdf(pdf, canvas, pageW, pageH, estado){
+  const imgW = pageW;
+  const imgH = (canvas.height * imgW) / canvas.width;
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+
+  if(imgH > pageH){
+    if(estado.cursorY > 0){ pdf.addPage(); estado.cursorY = 0; }
+    let heightLeft = imgH;
+    let position = 0;
+    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while(heightLeft > 0){
+      position = heightLeft - imgH;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+    estado.cursorY = pageH; // fuerza que el próximo bloque arranque en una hoja nueva
+    return;
+  }
+
+  if(estado.cursorY > 0 && estado.cursorY + imgH > pageH){
+    pdf.addPage();
+    estado.cursorY = 0;
+  }
+  pdf.addImage(imgData, 'JPEG', 0, estado.cursorY, imgW, imgH);
+  estado.cursorY += imgH;
+}
 async function generarPdfPresupuesto(id){
   const p = state.presupuestos.find(x=>x.id===id);
   if(!p) return;
@@ -3215,94 +3270,85 @@ async function generarPdfPresupuesto(id){
     : '<p style="font-size:13px;opacity:0.5;margin:0;">—</p>';
 
   const imagenesHtml = (p.imagenes && p.imagenes.length)
-    ? '<div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;margin-bottom:16px;">' +
+    ? '<div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;">' +
         p.imagenes.map(function(im){ var src = (im && im.dataUrl) ? im.dataUrl : im; return '<img src="'+src+'" style="max-width:100%;width:520px;border:1px solid #E5E5E5;border-radius:6px;display:block;margin:0 auto;">'; }).join('') +
       '</div>'
     : '';
 
-  const contenedor = document.createElement('div');
-  contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:40px 44px;font-family:Inter,sans-serif;width:760px;color:#161616;';
-  contenedor.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #161616;padding-bottom:18px;margin-bottom:24px;">' +
-      '<div style="display:flex;align-items:center;gap:14px;">' +
-        (logoSrc ? '<img src="'+logoSrc+'" style="height:80px;">' : '') +
-        '<div><div style="font-family:Georgia,serif;font-size:24px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Ondina Travel</div>' +
-        '<div style="font-size:11px;color:#6B7280;letter-spacing:0.15em;text-transform:uppercase;margin-top:3px;">Propuesta de viaje</div></div>' +
+  // El comprobante se arma en bloques independientes (encabezado+datos, imágenes,
+  // notas, precio, pie) y cada uno se captura por separado. Así, al paginar el PDF,
+  // nunca se corta un bloque a la mitad entre una hoja y la siguiente.
+  const bloqueHeaderInfo =
+    '<div style="padding:40px 44px 22px 44px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #161616;padding-bottom:18px;margin-bottom:24px;">' +
+        '<div style="display:flex;align-items:center;gap:14px;">' +
+          (logoSrc ? '<img src="'+logoSrc+'" style="height:80px;">' : '') +
+          '<div><div style="font-family:Georgia,serif;font-size:24px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">Ondina Travel</div>' +
+          '<div style="font-size:11px;color:#6B7280;letter-spacing:0.15em;text-transform:uppercase;margin-top:3px;">Propuesta de viaje</div></div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Presupuesto Nº</div>' +
+          '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:18px;font-weight:600;">' + (p.presupuestoNo || p.id) + '</div>' +
+          '<div style="font-size:11px;color:#6B7280;margin-top:4px;">Emitido el ' + hoy + '</div>' +
+        '</div>' +
       '</div>' +
-      '<div style="text-align:right;">' +
-        '<div style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Presupuesto Nº</div>' +
-        '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:18px;font-weight:600;">' + (p.presupuestoNo || p.id) + '</div>' +
-        '<div style="font-size:11px;color:#6B7280;margin-top:4px;">Emitido el ' + hoy + '</div>' +
-      '</div>' +
-    '</div>' +
+      '<table style="width:100%;border-collapse:collapse;">' +
+        '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
+        '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
+        (p.tipoViaje ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Tipo de viaje</td><td style="padding:6px 0;font-size:14px;">' + esc(p.tipoViaje) + '</td></tr>' : '') +
+        '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Cantidad de personas</td><td style="padding:6px 0;font-size:14px;">' + (p.personas || 1) + '</td></tr>' +
+        '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
+      '</table>' +
+    '</div>';
 
-    '<table style="width:100%;border-collapse:collapse;margin-bottom:22px;">' +
-      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
-      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
-      (p.tipoViaje ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Tipo de viaje</td><td style="padding:6px 0;font-size:14px;">' + esc(p.tipoViaje) + '</td></tr>' : '') +
-      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Cantidad de personas</td><td style="padding:6px 0;font-size:14px;">' + (p.personas || 1) + '</td></tr>' +
-      '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
-    '</table>' +
+  const bloqueImagenes = imagenesHtml
+    ? '<div style="padding:0 44px 22px 44px;">' + imagenesHtml + '</div>'
+    : '';
 
-    '<div style="margin-bottom:22px;">' +
-      imagenesHtml +
+  const bloqueNotas =
+    '<div style="padding:0 44px 22px 44px;">' +
       '<p style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Detalle / condiciones</p>' +
       notasHtml +
-    '</div>' +
+    '</div>';
 
-    '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;margin-bottom:22px;background:#FAFAF9;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
-        '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
+  const bloquePrecio =
+    '<div style="padding:0 44px 22px 44px;">' +
+      '<div style="border:1px solid #E5E5E5;border-radius:10px;padding:18px 20px;background:#FAFAF9;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio total</span>' +
+          '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:26px;font-weight:700;">' + fmt(p.precioVenta, p.moneda) + '</span>' +
+        '</div>' +
+        ((p.personas || 1) > 1
+          ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #E5E5E5;">' +
+              '<span style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio por persona (' + p.personas + ')</span>' +
+              '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:16px;font-weight:600;">' + fmt(p.precioVenta / p.personas, p.moneda) + '</span>' +
+            '</div>'
+          : '') +
       '</div>' +
-      ((p.personas || 1) > 1
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #E5E5E5;">' +
-            '<span style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Precio por persona (' + p.personas + ')</span>' +
-            '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:16px;font-weight:600;">' + fmt(p.precioVenta / p.personas, p.moneda) + '</span>' +
-          '</div>'
-        : '') +
-    '</div>' +
+    '</div>';
 
-    '<p style="font-size:10px;color:#9CA3AF;margin-top:30px;text-align:center;border-top:1px solid #E5E5E5;padding-top:14px;">Presupuesto sujeto a disponibilidad y confirmación al momento de la reserva · Ondina Travel</p>';
+  const bloqueFooter =
+    '<div style="padding:0 44px 40px 44px;">' +
+      '<p style="font-size:10px;color:#9CA3AF;margin:0;text-align:center;border-top:1px solid #E5E5E5;padding-top:14px;">Presupuesto sujeto a disponibilidad y confirmación al momento de la reserva · Ondina Travel</p>' +
+    '</div>';
 
-  document.body.appendChild(contenedor);
+  const bloquesHtml = [bloqueHeaderInfo, bloqueImagenes, bloqueNotas, bloquePrecio, bloqueFooter].filter(Boolean);
+
   try{
-    const imgs = Array.from(contenedor.querySelectorAll('img'));
-    await Promise.all(imgs.map(function(img){
-      if(img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise(function(resolve){
-        img.addEventListener('load', resolve, { once:true });
-        img.addEventListener('error', resolve, { once:true });
-      });
-    }));
-    // Pequeña espera extra para que el navegador termine de pintar el layout.
-    await new Promise(function(resolve){ setTimeout(resolve, 60); });
-
-    const canvas = await html2canvas(contenedor, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false });
-    document.body.removeChild(contenedor);
-
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const imgW = pageW;
-    const imgH = (canvas.height * imgW) / canvas.width;
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const estado = { cursorY: 0 };
 
-    let heightLeft = imgH;
-    let position = 0;
-    pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-    heightLeft -= pageH;
-    while(heightLeft > 0){
-      position = heightLeft - imgH;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, imgW, imgH);
-      heightLeft -= pageH;
+    for(const bloqueHtml of bloquesHtml){
+      const canvas = await capturarBloquePdf(bloqueHtml);
+      agregarBloquePdf(pdf, canvas, pageW, pageH, estado);
     }
+
     pdf.save('presupuesto-' + (p.presupuestoNo || p.id) + '.pdf');
     toast('PDF generado.', 'success');
   }catch(err){
-    if(contenedor.parentNode) document.body.removeChild(contenedor);
     console.error(err);
     toast('No se pudo generar el PDF: ' + err.message, 'error');
   }
