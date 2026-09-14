@@ -2925,7 +2925,7 @@ function renderListado(){
   if(texto){
     rows = rows.filter(f=>
       clienteNombreCompleto(f).toLowerCase().includes(texto) ||
-      f.destino.toLowerCase().includes(texto) ||
+      (f.destino||'').toLowerCase().includes(texto) ||
       (f.mayorista||'').toLowerCase().includes(texto) ||
       (f.clienteDni||'').includes(texto) ||
       String(f.fileNo).includes(texto)
