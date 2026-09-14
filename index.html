@@ -2131,10 +2131,18 @@ function redondear2(n){
   // el estado se mostrara como "Parcial" en vez de "Pagado".
   return Math.round((Number(n) || 0) * 100) / 100;
 }
+function saldoSano(n){
+  // Redondea a 2 decimales y además "pisa" a 0 cualquier residuo de hasta
+  // 1 centavo (ej: -0.01 o 0.01) que haya quedado de cobros/pagos parciales
+  // o conversiones de moneda, para que el file quede como "Pagado" en vez
+  // de mostrar un saldo/crédito fantasma de un centavo.
+  const v = redondear2(n);
+  return Math.abs(v) <= 0.01 ? 0 : v;
+}
 function sanearSaldosFiles(){
   state.files.forEach(f=>{
-    f.saldoCliente = redondear2(f.saldoCliente);
-    f.saldoMayorista = redondear2(f.saldoMayorista);
+    f.saldoCliente = saldoSano(f.saldoCliente);
+    f.saldoMayorista = saldoSano(f.saldoMayorista);
   });
   (state.creditosMayoristas || []).forEach(c=>{
     c.monto = redondear2(c.monto);
