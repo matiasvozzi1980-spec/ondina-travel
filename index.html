@@ -356,7 +356,7 @@
     <div class="text-right shrink-0">
       <p class="text-10 sm:text-xs uppercase tracking-widest opacity-50">Hoy</p>
       <p id="today-date" class="font-mono-num text-xs sm:text-sm"></p>
-      <button onclick="switchTab('config')" class="sync-indicator text-10 sm:text-xs solo-admin-accion">
+      <button onclick="onSyncIndicatorClick()" class="sync-indicator text-10 sm:text-xs">
         <span id="sync-dot" class="sync-dot sync-off"></span>
         <span id="sync-label">Modo local</span>
       </button>
@@ -5475,6 +5475,19 @@ function getSyncConfig(){
     if(raw === '__local__') return null; // este dispositivo se desconectó a propósito, no usar el default
     return raw ? JSON.parse(raw) : Object.assign({}, DEFAULT_SYNC_CONFIG);
   }catch(e){ return Object.assign({}, DEFAULT_SYNC_CONFIG); }
+}
+function onSyncIndicatorClick(){
+  if(currentUserRole === 'vendedor'){
+    const label = document.getElementById('sync-label');
+    const texto = label ? label.textContent : '';
+    if(texto === 'Sincronizado'){
+      toast('Todo se está guardando en la nube correctamente (Sincronizado).', 'success');
+    } else {
+      toast('Este dispositivo NO está sincronizado con la nube (estado: "' + texto + '"). Lo que cargues acá puede no verse en otros dispositivos. Avisá al administrador para que lo conecte.', 'error');
+    }
+    return;
+  }
+  switchTab('config');
 }
 function setSyncStatus(status, text){
   const dot = document.getElementById('sync-dot');
