@@ -4074,6 +4074,9 @@ async function optimizarImagenesGuardadas(){
   if(procesadas === 0){
     if(msgEl) msgEl.textContent = 'No había imágenes grandes para optimizar.';
     toast('No había imágenes grandes para optimizar.', 'info');
+    if(autoOptimizandoPorTamano){
+      setSyncStatus('error', 'La nube está llena y no hay imágenes grandes para reducir. Borrá imágenes viejas de algún file o presupuesto para poder seguir guardando.');
+    }
     return;
   }
   const liberadoKB = Math.max(0, Math.round((pesoAntes - pesoDespues) / 1024));
@@ -4190,8 +4193,14 @@ function siguienteFileNoDisponible(sugerido){
   while(state.files.some(f => String(f.fileNo) === String(candidato))) candidato++;
   return String(candidato);
 }
+let fileFormBusy = false;
 document.getElementById('file-form').addEventListener('submit', function(e){
   e.preventDefault();
+  // Evita duplicados por doble-tap: si ya se está procesando un envío de este
+  // formulario, ignora este segundo evento (se rehabilita solo, por las dudas).
+  if(fileFormBusy) return;
+  fileFormBusy = true;
+  setTimeout(function(){ fileFormBusy = false; }, 1200);
   let fileNo = document.getElementById('file-fileno').value.trim();
   const fecha = document.getElementById('file-fecha').value;
   const clienteNombre = document.getElementById('file-cliente-nombre').value.trim();
@@ -4458,8 +4467,12 @@ document.getElementById('presupuesto-precio').addEventListener('input', updatePr
 document.getElementById('presupuesto-moneda').addEventListener('change', updatePresupuestoComisionPreview);
 document.getElementById('presupuesto-personas').addEventListener('input', updatePresupuestoComisionPreview);
 
+let presupuestoFormBusy = false;
 document.getElementById('presupuesto-form').addEventListener('submit', function(e){
   e.preventDefault();
+  if(presupuestoFormBusy) return;
+  presupuestoFormBusy = true;
+  setTimeout(function(){ presupuestoFormBusy = false; }, 1200);
   const clienteNombre = document.getElementById('presupuesto-cliente-nombre').value.trim();
   const destino = document.getElementById('presupuesto-destino').value.trim();
   if(!clienteNombre || !destino){
@@ -5921,6 +5934,24 @@ function maxPresupuestoNo(presupuestos){
   });
   return max;
 }
+function dedupExactos(items, camposClave){
+  // Si dos registros tienen exactamente los mismos datos clave (por ej. por un
+  // doble-tap en "Guardar" que mandó el mismo formulario dos veces), son un
+  // duplicado real — no dos cosas distintas que coincidan en número. Nos
+  // quedamos con el más viejo (id más chico) y descartamos el resto.
+  const vistos = new Set();
+  const ordenados = items.slice().sort(function(a,b){ return (a.id||0) - (b.id||0); });
+  const idsAConservar = new Set();
+  ordenados.forEach(function(item){
+    const clave = camposClave.map(function(c){ return item[c]; }).join('|');
+    if(!clave.trim() || vistos.has(clave)){
+      if(vistos.has(clave)) return; // duplicado exacto, se descarta
+    }
+    vistos.add(clave);
+    idsAConservar.add(item.id);
+  });
+  return items.filter(function(item){ return idsAConservar.has(item.id); });
+}
 function mergeStateConCloud(cloudData, localState){
   const cloud = cloudData || {};
   const deletedFileIds = podarTombstonesViejos(mergeTombstones(cloud.deletedFileIds, localState.deletedFileIds));
@@ -5928,8 +5959,16 @@ function mergeStateConCloud(cloudData, localState){
   const deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(cloud.deletedPresupuestoIds, localState.deletedPresupuestoIds));
   const deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(cloud.deletedUsuarioIds, localState.deletedUsuarioIds));
 
-  const filesMerged = resolverFileNoDuplicados(mergeArraysById(cloud.files, localState.files, idsComoSet(deletedFileIds)));
-  const presupuestosMerged = resolverPresupuestoNoDuplicados(mergeArraysById(cloud.presupuestos, localState.presupuestos, idsComoSet(deletedPresupuestoIds)));
+  const filesFusionados = dedupExactos(
+    mergeArraysById(cloud.files, localState.files, idsComoSet(deletedFileIds)),
+    ['fileNo','clienteNombre','destino','costoNeto','precioVenta']
+  );
+  const filesMerged = resolverFileNoDuplicados(filesFusionados);
+  const presupuestosFusionados = dedupExactos(
+    mergeArraysById(cloud.presupuestos, localState.presupuestos, idsComoSet(deletedPresupuestoIds)),
+    ['clienteNombre','destino','costoNeto','precioVenta','fecha']
+  );
+  const presupuestosMerged = resolverPresupuestoNoDuplicados(presupuestosFusionados);
   return {
     files: filesMerged,
     movs: mergeArraysById(cloud.movs, localState.movs, idsComoSet(deletedMovIds)),
@@ -5982,9 +6021,20 @@ function pushToCloud(){
   }).catch(function(err){
     console.error(err);
     suppressNextSnapshot = false;
+    const esErrorDeTamano = err && err.message && /exceeds the maximum|maximum allowed size/i.test(err.message);
+    if(esErrorDeTamano && !autoOptimizandoPorTamano){
+      // El documento superó el límite de 1MB de Firestore (casi siempre por
+      // imágenes grandes). Antes de mostrarle un error al vendedor, intentamos
+      // arreglarlo solos: comprimimos las imágenes guardadas y reintentamos.
+      autoOptimizandoPorTamano = true;
+      setSyncStatus('connecting', 'La nube está muy llena — optimizando imágenes automáticamente...');
+      optimizarImagenesGuardadas().finally(function(){ autoOptimizandoPorTamano = false; });
+      return;
+    }
     setSyncStatus('error', 'Error al guardar en la nube: ' + err.message);
   });
 }
+let autoOptimizandoPorTamano = false;
 function connectSync(){
   const raw = document.getElementById('sync-config-input').value.trim();
   if(!raw){ toast('Pegá o generá un código de conexión primero.', 'error'); return; }
