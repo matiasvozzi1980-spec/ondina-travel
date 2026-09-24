@@ -5621,10 +5621,70 @@ function cleanForFirestore(obj){
   // Quita valores undefined/no serializables antes de guardar en Firestore
   return JSON.parse(JSON.stringify(obj));
 }
+function mergeArraysById(cloudArr, localArr){
+  // Combina lo que hay en la nube con lo que hay en este dispositivo, por "id".
+  // Si un registro (file, presupuesto, mov, etc.) existe en los dos lados, gana
+  // la versión de ESTE dispositivo (porque es el que acaba de editarlo). Pero si
+  // otro dispositivo agregó un registro nuevo que este dispositivo todavía no
+  // tiene, ese registro NO se pierde — se conserva.
+  // Esto evita que al guardar (por ej. un presupuesto con fotos) se pise por
+  // accidente algo que cargó otro vendedor un instante antes.
+  const cloud = Array.isArray(cloudArr) ? cloudArr : [];
+  const local = Array.isArray(localArr) ? localArr : [];
+  const map = new Map();
+  cloud.forEach(function(item){ if(item && item.id != null) map.set(item.id, item); });
+  local.forEach(function(item){ if(item && item.id != null) map.set(item.id, item); });
+  return Array.from(map.values());
+}
+function mergeStringSets(cloudArr, localArr){
+  const cloud = Array.isArray(cloudArr) ? cloudArr : [];
+  const local = Array.isArray(localArr) ? localArr : [];
+  return Array.from(new Set(cloud.concat(local)));
+}
+function mergeStateConCloud(cloudData, localState){
+  const cloud = cloudData || {};
+  return {
+    files: mergeArraysById(cloud.files, localState.files),
+    movs: mergeArraysById(cloud.movs, localState.movs),
+    clientes: mergeArraysById(cloud.clientes, localState.clientes),
+    presupuestos: mergeArraysById(cloud.presupuestos, localState.presupuestos),
+    creditosMayoristas: mergeArraysById(cloud.creditosMayoristas, localState.creditosMayoristas),
+    usuarios: mergeArraysById(cloud.usuarios, localState.usuarios),
+    mayoristas: mergeStringSets(cloud.mayoristas, localState.mayoristas),
+    gastoCategorias: (localState.gastoCategorias && localState.gastoCategorias.length) ? localState.gastoCategorias : (cloud.gastoCategorias || GASTO_CATEGORIAS_DEFAULT.slice()),
+    nextFileNo: Math.max(cloud.nextFileNo || 1, localState.nextFileNo || 1),
+    nextPresupuestoNo: Math.max(cloud.nextPresupuestoNo || 1, localState.nextPresupuestoNo || 1),
+    adminAuth: localState.adminAuth || cloud.adminAuth || Object.assign({}, ADMIN_AUTH_DEFAULT)
+  };
+}
 function pushToCloud(){
-  if(!firebaseEnabled || !syncDocRef) return;
+  if(!firebaseEnabled || !syncDocRef || !firestoreDb) return;
   suppressNextSnapshot = true;
-  syncDocRef.set(cleanForFirestore(state)).catch(function(err){
+  const localSnapshot = cleanForFirestore(state);
+  firestoreDb.runTransaction(function(transaction){
+    return transaction.get(syncDocRef).then(function(doc){
+      const cloudData = doc.exists ? doc.data() : {};
+      const merged = mergeStateConCloud(cloudData, localSnapshot);
+      transaction.set(syncDocRef, merged);
+      return merged;
+    });
+  }).then(function(merged){
+    // Si el merge trajo algo nuevo de otro dispositivo que este todavía no tenía
+    // (o evitó perder algo propio), lo reflejamos acá también.
+    state.files = merged.files;
+    state.movs = merged.movs;
+    state.clientes = merged.clientes;
+    state.presupuestos = merged.presupuestos;
+    state.creditosMayoristas = merged.creditosMayoristas;
+    state.usuarios = merged.usuarios;
+    state.mayoristas = merged.mayoristas;
+    state.gastoCategorias = merged.gastoCategorias;
+    state.nextFileNo = merged.nextFileNo;
+    state.nextPresupuestoNo = merged.nextPresupuestoNo;
+    sanearSaldosFiles();
+    persist();
+    renderAll();
+  }).catch(function(err){
     console.error(err);
     suppressNextSnapshot = false;
     setSyncStatus('error', 'Error al guardar en la nube: ' + err.message);
