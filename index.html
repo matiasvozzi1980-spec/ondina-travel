@@ -5777,19 +5777,72 @@ function detectarSoloLocal(cloudData, localState){
     return local.some(function(i){ return i && i.id != null && !cloudIds.has(i.id) && esRegistroLocalReciente(i); });
   });
 }
+function resolverFileNoDuplicados(files){
+  // Si dos dispositivos crearon un file con el mismo número casi al mismo tiempo
+  // (cada uno sin ver todavía el del otro), al fusionar quedarían dos files con
+  // el mismo Nº. Esto lo detecta y le asigna al más nuevo el siguiente número
+  // libre, para no tener dos files con el mismo Nº dando vueltas.
+  const usados = new Set();
+  const ordenados = files.slice().sort(function(a,b){ return (a.id||0) - (b.id||0); });
+  ordenados.forEach(function(f){
+    let key = String(f.fileNo);
+    if(usados.has(key)){
+      const n = parseInt(key, 10);
+      if(!isNaN(n) && String(n) === key){
+        let candidato = n;
+        do { candidato++; } while(usados.has(String(candidato)));
+        f.fileNo = String(candidato);
+        key = String(candidato);
+      }
+      // Códigos no numéricos (ej. "MACRO") no se autoincrementan — caso rarísimo.
+    }
+    usados.add(key);
+  });
+  return files;
+}
+function resolverPresupuestoNoDuplicados(presupuestos){
+  // Mismo problema que con fileNo, pero con el número de presupuesto.
+  const usados = new Set();
+  const ordenados = presupuestos.slice().sort(function(a,b){ return (a.id||0) - (b.id||0); });
+  ordenados.forEach(function(p){
+    let n = p.presupuestoNo;
+    if(typeof n !== 'number' || isNaN(n)) return;
+    while(usados.has(n)) n++;
+    p.presupuestoNo = n;
+    usados.add(n);
+  });
+  return presupuestos;
+}
+function maxFileNoNumerico(files){
+  let max = 0;
+  files.forEach(function(f){
+    const n = parseInt(f.fileNo, 10);
+    if(!isNaN(n) && String(n) === String(f.fileNo)) max = Math.max(max, n);
+  });
+  return max;
+}
+function maxPresupuestoNo(presupuestos){
+  let max = 0;
+  presupuestos.forEach(function(p){
+    if(typeof p.presupuestoNo === 'number') max = Math.max(max, p.presupuestoNo);
+  });
+  return max;
+}
 function mergeStateConCloud(cloudData, localState){
   const cloud = cloudData || {};
+  const filesMerged = resolverFileNoDuplicados(mergeArraysById(cloud.files, localState.files));
+  const presupuestosMerged = resolverPresupuestoNoDuplicados(mergeArraysById(cloud.presupuestos, localState.presupuestos));
   return {
-    files: mergeArraysById(cloud.files, localState.files),
+    files: filesMerged,
     movs: mergeArraysById(cloud.movs, localState.movs),
     clientes: mergeArraysById(cloud.clientes, localState.clientes),
-    presupuestos: mergeArraysById(cloud.presupuestos, localState.presupuestos),
+    presupuestos: presupuestosMerged,
     creditosMayoristas: mergeArraysById(cloud.creditosMayoristas, localState.creditosMayoristas),
     usuarios: mergeArraysById(cloud.usuarios, localState.usuarios),
     mayoristas: mergeStringSets(cloud.mayoristas, localState.mayoristas),
     gastoCategorias: (localState.gastoCategorias && localState.gastoCategorias.length) ? localState.gastoCategorias : (cloud.gastoCategorias || GASTO_CATEGORIAS_DEFAULT.slice()),
-    nextFileNo: Math.max(cloud.nextFileNo || 1, localState.nextFileNo || 1),
-    nextPresupuestoNo: Math.max(cloud.nextPresupuestoNo || 1, localState.nextPresupuestoNo || 1),
+    nextFileNo: Math.max(cloud.nextFileNo || 1, localState.nextFileNo || 1, maxFileNoNumerico(filesMerged) + 1),
+    nextPresupuestoNo: Math.max(cloud.nextPresupuestoNo || 1, localState.nextPresupuestoNo || 1, maxPresupuestoNo(presupuestosMerged) + 1),
     adminAuth: localState.adminAuth || cloud.adminAuth || Object.assign({}, ADMIN_AUTH_DEFAULT)
   };
 }
