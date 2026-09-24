@@ -4010,7 +4010,7 @@ function openFileModal(presupuesto){
   document.getElementById('file-form').reset();
   hideClienteAutocomplete('file');
   document.getElementById('file-fecha').value = todayStr();
-  document.getElementById('file-fileno').value = '';
+  document.getElementById('file-fileno').value = String(state.nextFileNo);
   document.getElementById('file-fileno').placeholder = `Sugerido: ${state.nextFileNo}`;
   document.getElementById('file-fileno').disabled = false;
   document.getElementById('file-moneda').value = presupuesto ? presupuesto.moneda : 'USD';
@@ -4093,9 +4093,22 @@ document.getElementById('file-precio').addEventListener('input', updateComisionP
 document.getElementById('file-moneda').addEventListener('change', updateComisionPreview);
 document.getElementById('file-personas').addEventListener('input', updateComisionPreview);
 
+function siguienteFileNoDisponible(sugerido){
+  // Si el número que se intentó usar ya está tomado (por ej. porque otro
+  // vendedor creó un file con ese número casi al mismo tiempo), busca el
+  // siguiente número libre en vez de bloquear el guardado. Solo funciona si
+  // el número es puramente numérico (los códigos tipo "MACRO" no se pueden
+  // autoincrementar).
+  const texto = String(sugerido).trim();
+  const n = parseInt(texto, 10);
+  if(isNaN(n) || String(n) !== texto) return null;
+  let candidato = n;
+  while(state.files.some(f => String(f.fileNo) === String(candidato))) candidato++;
+  return String(candidato);
+}
 document.getElementById('file-form').addEventListener('submit', function(e){
   e.preventDefault();
-  const fileNo = document.getElementById('file-fileno').value.trim();
+  let fileNo = document.getElementById('file-fileno').value.trim();
   const fecha = document.getElementById('file-fecha').value;
   const clienteNombre = document.getElementById('file-cliente-nombre').value.trim();
   const clienteApellido = document.getElementById('file-cliente-apellido').value.trim();
@@ -4188,8 +4201,13 @@ document.getElementById('file-form').addEventListener('submit', function(e){
 
         // Crear el file directamente con el clienteId existente, saltando upsertCliente
         if(state.files.some(f=>f.fileNo === fileNo)){
-          toast('Ya existe un file con ese número. Elegí otro.', 'error');
-          return;
+          const alternativo = siguienteFileNoDisponible(fileNo);
+          if(!alternativo){
+            toast('Ya existe un file con ese número. Elegí otro.', 'error');
+            return;
+          }
+          toast(`El número #${fileNo} ya estaba usado (probablemente otro vendedor lo tomó justo antes) — se guardó como #${alternativo} para no perder la carga.`, 'info');
+          fileNo = alternativo;
         }
         const file = {
           id: Date.now(),
@@ -4259,8 +4277,13 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     f.imagenes = imagenes;
   } else {
     if(state.files.some(f=>f.fileNo === fileNo)){
-      toast('Ya existe un file con ese número. Elegí otro.', 'error');
-      return;
+      const alternativo = siguienteFileNoDisponible(fileNo);
+      if(!alternativo){
+        toast('Ya existe un file con ese número. Elegí otro.', 'error');
+        return;
+      }
+      toast(`El número #${fileNo} ya estaba usado (probablemente otro vendedor lo tomó justo antes) — se guardó como #${alternativo} para no perder la carga.`, 'info');
+      fileNo = alternativo;
     }
     const file = {
       id: Date.now(),
