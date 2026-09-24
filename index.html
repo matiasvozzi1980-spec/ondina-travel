@@ -3963,6 +3963,7 @@ let presupuestoImagenesTemp = [];
 let vendedorOrigenConversion = null;
 const IMG_MAX_ANCHO = 800;
 const IMG_CALIDAD = 0.55;
+const IMAGENES_MAX_POR_ITEM = 6; // todas las imágenes comparten un único documento de 1MB en la nube — un file con demasiadas fotos puede llenarlo él solo
 function imagenesTempDe(prefix){
   return prefix === 'file' ? fileImagenesTemp : presupuestoImagenesTemp;
 }
@@ -3974,6 +3975,10 @@ function handleImagePaste(e, prefix){
     const item = items[i];
     if(item.kind === 'file' && item.type.indexOf('image/') === 0){
       huboImagen = true;
+      if(imagenesTempDe(prefix).length >= IMAGENES_MAX_POR_ITEM){
+        toast(`Máximo ${IMAGENES_MAX_POR_ITEM} imágenes por file/presupuesto (para no saturar el espacio compartido en la nube). Sacá alguna antes de agregar otra.`, 'error');
+        continue;
+      }
       const blob = item.getAsFile();
       comprimirImagen(blob, function(dataUrl){
         imagenesTempDe(prefix).push({ id: Date.now() + Math.random(), dataUrl });
