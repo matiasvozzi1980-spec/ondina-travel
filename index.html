@@ -1203,6 +1203,12 @@
       <h3 class="font-display text-lg mb-2">Sincronización en la nube (todos los dispositivos)</h3>
       <p class="text-sm opacity-70 mb-2">
         Estado actual: <strong id="config-sync-status">Modo local (sin sincronizar)</strong>
+        <button onclick="forzarSincronizacion(true)" class="btn-mini ml-2">Forzar sincronización ahora</button>
+      </p>
+      <p class="text-xs opacity-50 mb-2">
+        Si algo no se ve igual en dos dispositivos (por ej. algo que borraste en uno sigue apareciendo en otro),
+        tocá "Forzar sincronización ahora" en el dispositivo que está desactualizado — vuelve a leer todo
+        directamente desde la nube, sin usar ninguna copia guardada en el teléfono/navegador.
       </p>
       <p class="text-sm opacity-70 mb-2">
         Para que la Mac, el iPhone y cualquier otro dispositivo vean los mismos files, clientes y movimientos
@@ -5641,6 +5647,7 @@ function getSyncConfig(){
   }catch(e){ return Object.assign({}, DEFAULT_SYNC_CONFIG); }
 }
 function onSyncIndicatorClick(){
+  forzarSincronizacion(false); // cada vez que alguien mira el indicador, aprovechamos y releemos de la nube
   if(currentUserRole === 'vendedor'){
     const label = document.getElementById('sync-label');
     const texto = label ? label.textContent : '';
@@ -5660,6 +5667,67 @@ function setSyncStatus(status, text){
   if(dot) dot.className = 'sync-dot sync-' + status;
   if(label) label.textContent = text;
   if(configLabel) configLabel.textContent = text;
+}
+function aplicarSnapshotCloud(data){
+  // Si este dispositivo tiene algo que la nube todavía no tiene (por ej.
+  // un presupuesto que se cargó mientras todavía se estaba conectando a
+  // la nube, o mientras estuvo un rato sin conexión), NO lo pisamos acá:
+  // lo conservamos y lo volvemos a subir. Si no, para todo lo demás vale
+  // lo que diga la nube (es la fuente de verdad normal).
+  const soloLocal = detectarSoloLocal(data, state);
+  state.deletedFileIds = podarTombstonesViejos(mergeTombstones(data.deletedFileIds, state.deletedFileIds));
+  state.deletedMovIds = podarTombstonesViejos(mergeTombstones(data.deletedMovIds, state.deletedMovIds));
+  state.deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(data.deletedPresupuestoIds, state.deletedPresupuestoIds));
+  state.deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(data.deletedUsuarioIds, state.deletedUsuarioIds));
+  state.files = mergeArraysCloudFirst(data.files, state.files, idsComoSet(state.deletedFileIds));
+  state.movs = mergeArraysCloudFirst(data.movs, state.movs, idsComoSet(state.deletedMovIds));
+  state.clientes = mergeArraysCloudFirst(data.clientes, state.clientes);
+  state.nextFileNo = Math.max(data.nextFileNo || 1, state.nextFileNo || 1);
+  state.presupuestos = mergeArraysCloudFirst(data.presupuestos, state.presupuestos, idsComoSet(state.deletedPresupuestoIds));
+  state.nextPresupuestoNo = Math.max(data.nextPresupuestoNo || 1, state.nextPresupuestoNo || 1);
+  state.gastoCategorias = mergeStringSets(
+    (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice(),
+    state.gastoCategorias
+  );
+  state.usuarios = mergeArraysCloudFirst(data.usuarios, state.usuarios, idsComoSet(state.deletedUsuarioIds));
+  state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
+  state.mayoristas = mergeStringSets(data.mayoristas, state.mayoristas);
+  state.creditosMayoristas = mergeArraysCloudFirst(data.creditosMayoristas, state.creditosMayoristas);
+  sanearSaldosFiles();
+  seedMayoristasSiVacio();
+  seedPresupuestoNumerosSiFaltan();
+  persist();
+  buildAjusteCajas();
+  renderGastoCategoriaSelect();
+  renderGastoCategoriasConfig();
+  renderMayoristasConfig();
+  renderAll();
+  if(soloLocal) pushToCloud(); // recupera y sube lo que este dispositivo tenía y la nube no
+}
+function forzarSincronizacion(mostrarAviso){
+  // Vuelve a leer el documento DIRECTAMENTE del servidor (nunca de una copia en
+  // caché del teléfono/navegador) y reaplica el merge. Sirve para autocorregir
+  // un dispositivo que quedó con un listener de Firestore "trabado" mostrando
+  // "Sincronizado" pero en realidad desactualizado.
+  if(!firebaseEnabled || !syncDocRef){
+    if(mostrarAviso) toast('No hay conexión a la nube configurada en este dispositivo.', 'error');
+    return;
+  }
+  setSyncStatus('connecting', 'Releyendo desde la nube...');
+  syncDocRef.get({ source: 'server' }).then(function(snap){
+    if(snap.exists){
+      aplicarSnapshotCloud(snap.data() || {});
+      setSyncStatus('on', 'Sincronizado');
+      if(mostrarAviso) toast('Sincronización forzada: se releyó todo directamente desde la nube.', 'success');
+    } else {
+      setSyncStatus('on', 'Sincronizado');
+      if(mostrarAviso) toast('No se encontró el documento en la nube.', 'error');
+    }
+  }).catch(function(err){
+    console.error(err);
+    setSyncStatus('error', 'Error de sincronización: ' + err.message);
+    if(mostrarAviso) toast('No se pudo forzar la sincronización: ' + err.message, 'error');
+  });
 }
 function initFirebase(){
   syncConfig = getSyncConfig();
@@ -5683,41 +5751,7 @@ function initFirebase(){
       syncDocRef.onSnapshot(function(snap){
         if(suppressNextSnapshot){ suppressNextSnapshot = false; setSyncStatus('on', 'Sincronizado'); return; }
         if(snap.exists){
-          const data = snap.data() || {};
-          // Si este dispositivo tiene algo que la nube todavía no tiene (por ej.
-          // un presupuesto que se cargó mientras todavía se estaba conectando a
-          // la nube, o mientras estuvo un rato sin conexión), NO lo pisamos acá:
-          // lo conservamos y lo volvemos a subir. Si no, para todo lo demás vale
-          // lo que diga la nube (es la fuente de verdad normal).
-          const soloLocal = detectarSoloLocal(data, state);
-          state.deletedFileIds = podarTombstonesViejos(mergeTombstones(data.deletedFileIds, state.deletedFileIds));
-          state.deletedMovIds = podarTombstonesViejos(mergeTombstones(data.deletedMovIds, state.deletedMovIds));
-          state.deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(data.deletedPresupuestoIds, state.deletedPresupuestoIds));
-          state.deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(data.deletedUsuarioIds, state.deletedUsuarioIds));
-          state.files = mergeArraysCloudFirst(data.files, state.files, idsComoSet(state.deletedFileIds));
-          state.movs = mergeArraysCloudFirst(data.movs, state.movs, idsComoSet(state.deletedMovIds));
-          state.clientes = mergeArraysCloudFirst(data.clientes, state.clientes);
-          state.nextFileNo = Math.max(data.nextFileNo || 1, state.nextFileNo || 1);
-          state.presupuestos = mergeArraysCloudFirst(data.presupuestos, state.presupuestos, idsComoSet(state.deletedPresupuestoIds));
-          state.nextPresupuestoNo = Math.max(data.nextPresupuestoNo || 1, state.nextPresupuestoNo || 1);
-          state.gastoCategorias = mergeStringSets(
-            (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice(),
-            state.gastoCategorias
-          );
-          state.usuarios = mergeArraysCloudFirst(data.usuarios, state.usuarios, idsComoSet(state.deletedUsuarioIds));
-          state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
-          state.mayoristas = mergeStringSets(data.mayoristas, state.mayoristas);
-          state.creditosMayoristas = mergeArraysCloudFirst(data.creditosMayoristas, state.creditosMayoristas);
-          sanearSaldosFiles();
-          seedMayoristasSiVacio();
-          seedPresupuestoNumerosSiFaltan();
-          persist();
-          buildAjusteCajas();
-          renderGastoCategoriaSelect();
-          renderGastoCategoriasConfig();
-          renderMayoristasConfig();
-          renderAll();
-          if(soloLocal) pushToCloud(); // recupera y sube lo que este dispositivo tenía y la nube no
+          aplicarSnapshotCloud(snap.data() || {});
         } else {
           syncDocRef.set(cleanForFirestore(state));
         }
