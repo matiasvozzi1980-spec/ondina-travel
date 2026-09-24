@@ -1818,7 +1818,7 @@ const FILE_TABLE_COLS = 14;
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
 const ADMIN_AUTH_DEFAULT = { usuario: 'admin', clave: 'ondina2026' };
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [], creditosMayoristas: [] };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [], creditosMayoristas: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
 
 /* ====================================================================
    USUARIOS Y ROLES (vendedores con acceso restringido)
@@ -2190,6 +2190,10 @@ function load(){
       state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
       state.mayoristas = Array.isArray(data.mayoristas) ? data.mayoristas : [];
       state.creditosMayoristas = Array.isArray(data.creditosMayoristas) ? data.creditosMayoristas : [];
+      state.deletedFileIds = Array.isArray(data.deletedFileIds) ? data.deletedFileIds : [];
+      state.deletedMovIds = Array.isArray(data.deletedMovIds) ? data.deletedMovIds : [];
+      state.deletedPresupuestoIds = Array.isArray(data.deletedPresupuestoIds) ? data.deletedPresupuestoIds : [];
+      state.deletedUsuarioIds = Array.isArray(data.deletedUsuarioIds) ? data.deletedUsuarioIds : [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     sanearSaldosFiles();
     seedMayoristasSiVacio();
@@ -4487,6 +4491,7 @@ document.getElementById('presupuesto-form').addEventListener('submit', function(
 
 function deletePresupuesto(id){
   if(!confirm('¿Eliminar este presupuesto? Esta acción no se puede deshacer.')) return;
+  marcarEliminado(state, 'deletedPresupuestoIds', id);
   state.presupuestos = state.presupuestos.filter(p=>p.id!==id);
   save();
 }
@@ -5170,6 +5175,8 @@ document.getElementById('btn-edit-file').addEventListener('click', function(){
 document.getElementById('btn-delete-file').addEventListener('click', function(){
   if(!currentFileId) return;
   if(!confirm('¿Eliminar este file y todos sus movimientos asociados? Esta acción no se puede deshacer.')) return;
+  marcarEliminado(state, 'deletedFileIds', currentFileId);
+  state.movs.filter(m=>m.fileId === currentFileId).forEach(m => marcarEliminado(state, 'deletedMovIds', m.id));
   state.files = state.files.filter(f=>f.id !== currentFileId);
   state.movs = state.movs.filter(m=>m.fileId !== currentFileId);
   closeDetailModal();
@@ -5486,6 +5493,7 @@ function deleteMov(id){
 
   if(!confirm(msg)) return;
   revertirEfectoMov(m);
+  marcarEliminado(state, 'deletedMovIds', m.id);
   state.movs.splice(idx,1);
   save();
   if(currentFileId) renderFileHistory(currentFileId);
@@ -5594,7 +5602,7 @@ function resetAll(){
   const usuariosPrevios = state.usuarios;
   const adminAuthPrevio = state.adminAuth;
   const mayoristasPrevios = state.mayoristas;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios, creditosMayoristas: [] };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios, creditosMayoristas: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
   save();
 }
 
@@ -5682,17 +5690,21 @@ function initFirebase(){
           // lo conservamos y lo volvemos a subir. Si no, para todo lo demás vale
           // lo que diga la nube (es la fuente de verdad normal).
           const soloLocal = detectarSoloLocal(data, state);
-          state.files = mergeArraysCloudFirst(data.files, state.files);
-          state.movs = mergeArraysCloudFirst(data.movs, state.movs);
+          state.deletedFileIds = podarTombstonesViejos(mergeTombstones(data.deletedFileIds, state.deletedFileIds));
+          state.deletedMovIds = podarTombstonesViejos(mergeTombstones(data.deletedMovIds, state.deletedMovIds));
+          state.deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(data.deletedPresupuestoIds, state.deletedPresupuestoIds));
+          state.deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(data.deletedUsuarioIds, state.deletedUsuarioIds));
+          state.files = mergeArraysCloudFirst(data.files, state.files, idsComoSet(state.deletedFileIds));
+          state.movs = mergeArraysCloudFirst(data.movs, state.movs, idsComoSet(state.deletedMovIds));
           state.clientes = mergeArraysCloudFirst(data.clientes, state.clientes);
           state.nextFileNo = Math.max(data.nextFileNo || 1, state.nextFileNo || 1);
-          state.presupuestos = mergeArraysCloudFirst(data.presupuestos, state.presupuestos);
+          state.presupuestos = mergeArraysCloudFirst(data.presupuestos, state.presupuestos, idsComoSet(state.deletedPresupuestoIds));
           state.nextPresupuestoNo = Math.max(data.nextPresupuestoNo || 1, state.nextPresupuestoNo || 1);
           state.gastoCategorias = mergeStringSets(
             (data.gastoCategorias && data.gastoCategorias.length) ? data.gastoCategorias : GASTO_CATEGORIAS_DEFAULT.slice(),
             state.gastoCategorias
           );
-          state.usuarios = mergeArraysCloudFirst(data.usuarios, state.usuarios);
+          state.usuarios = mergeArraysCloudFirst(data.usuarios, state.usuarios, idsComoSet(state.deletedUsuarioIds));
           state.adminAuth = (data.adminAuth && data.adminAuth.usuario && data.adminAuth.clave) ? data.adminAuth : Object.assign({}, ADMIN_AUTH_DEFAULT);
           state.mayoristas = mergeStringSets(data.mayoristas, state.mayoristas);
           state.creditosMayoristas = mergeArraysCloudFirst(data.creditosMayoristas, state.creditosMayoristas);
@@ -5728,7 +5740,7 @@ function cleanForFirestore(obj){
   // Quita valores undefined/no serializables antes de guardar en Firestore
   return JSON.parse(JSON.stringify(obj));
 }
-function mergeArraysById(cloudArr, localArr){
+function mergeArraysById(cloudArr, localArr, tombstoneIds){
   // Combina lo que hay en la nube con lo que hay en este dispositivo, por "id".
   // Si un registro (file, presupuesto, mov, etc.) existe en los dos lados, gana
   // la versión de ESTE dispositivo (porque es el que acaba de editarlo). Pero si
@@ -5736,11 +5748,14 @@ function mergeArraysById(cloudArr, localArr){
   // tiene, ese registro NO se pierde — se conserva.
   // Esto evita que al guardar (por ej. un presupuesto con fotos) se pise por
   // accidente algo que cargó otro vendedor un instante antes.
+  // "tombstoneIds" son ids que se borraron explícitamente (en este dispositivo
+  // o en otro) — esos NUNCA se reincorporan, aunque todavía estén en la nube.
   const cloud = Array.isArray(cloudArr) ? cloudArr : [];
   const local = Array.isArray(localArr) ? localArr : [];
+  const borrados = tombstoneIds || new Set();
   const map = new Map();
-  cloud.forEach(function(item){ if(item && item.id != null) map.set(item.id, item); });
-  local.forEach(function(item){ if(item && item.id != null) map.set(item.id, item); });
+  cloud.forEach(function(item){ if(item && item.id != null && !borrados.has(item.id)) map.set(item.id, item); });
+  local.forEach(function(item){ if(item && item.id != null && !borrados.has(item.id)) map.set(item.id, item); });
   return Array.from(map.values());
 }
 function mergeStringSets(cloudArr, localArr){
@@ -5755,27 +5770,71 @@ function esRegistroLocalReciente(item){
   if(!item || item.id == null) return false;
   return (Date.now() - item.id) < SOLO_LOCAL_VENTANA_MS;
 }
-function mergeArraysCloudFirst(cloudArr, localArr){
+function mergeArraysCloudFirst(cloudArr, localArr, tombstoneIds){
   // Al RECIBIR datos de la nube: la nube manda para todo lo que ya tiene
   // (así los cambios de otros dispositivos se ven reflejados normalmente).
   // Lo único que se conserva de este dispositivo es lo que tiene, la nube
   // todavía no, Y que se creó hace poco (últimas 24hs) — evita perder algo
-  // cargado acá mientras se estaba conectando o sin señal, sin resucitar
-  // registros viejos que se hayan borrado desde otro dispositivo.
+  // cargado acá mientras se estaba conectando o sin señal. Un id marcado
+  // como borrado (tombstone) nunca se conserva ni se vuelve a mostrar,
+  // así una eliminación no "resucita" por venir de otro dispositivo.
   const cloud = Array.isArray(cloudArr) ? cloudArr : [];
   const local = Array.isArray(localArr) ? localArr : [];
-  const cloudIds = new Set(cloud.map(function(i){ return i && i.id; }));
-  const soloLocal = local.filter(function(i){ return i && i.id != null && !cloudIds.has(i.id) && esRegistroLocalReciente(i); });
-  return cloud.concat(soloLocal);
+  const borrados = tombstoneIds || new Set();
+  const cloudFiltrado = cloud.filter(function(i){ return !(i && i.id != null && borrados.has(i.id)); });
+  const cloudIds = new Set(cloudFiltrado.map(function(i){ return i && i.id; }));
+  const soloLocal = local.filter(function(i){
+    return i && i.id != null && !cloudIds.has(i.id) && !borrados.has(i.id) && esRegistroLocalReciente(i);
+  });
+  return cloudFiltrado.concat(soloLocal);
+}
+function mergeTombstones(cloudList, localList){
+  // Une las listas de "ids borrados" de la nube y de este dispositivo (por id,
+  // se queda con la fecha más vieja si aparece en las dos).
+  const cloud = Array.isArray(cloudList) ? cloudList : [];
+  const local = Array.isArray(localList) ? localList : [];
+  const map = new Map();
+  cloud.concat(local).forEach(function(t){
+    if(!t || t.id == null) return;
+    const existente = map.get(t.id);
+    if(!existente || (t.ts||0) < (existente.ts||0)) map.set(t.id, t);
+  });
+  return Array.from(map.values());
+}
+function idsComoSet(tombstoneList){
+  return new Set((tombstoneList || []).map(function(t){ return t.id; }));
+}
+function marcarEliminado(state, campo, id){
+  if(!Array.isArray(state[campo])) state[campo] = [];
+  state[campo].push({ id: id, ts: Date.now() });
+}
+const TOMBSTONE_VENTANA_MS = 90 * 24 * 60 * 60 * 1000; // 90 días
+function podarTombstonesViejos(list){
+  const ahora = Date.now();
+  return (Array.isArray(list) ? list : []).filter(function(t){ return t && (ahora - (t.ts||0)) < TOMBSTONE_VENTANA_MS; });
 }
 function detectarSoloLocal(cloudData, localState){
-  const claves = ['files','movs','clientes','presupuestos','usuarios','creditosMayoristas'];
-  return claves.some(function(k){
+  const pares = [
+    ['files','deletedFileIds'], ['movs','deletedMovIds'],
+    ['presupuestos','deletedPresupuestoIds'], ['usuarios','deletedUsuarioIds']
+  ];
+  const otras = ['clientes','creditosMayoristas'];
+  const todasBorradasVacias = new Set();
+  const hayEnColConTombstone = pares.some(function(par){
+    const k = par[0], tk = par[1];
+    const cloud = Array.isArray(cloudData[k]) ? cloudData[k] : [];
+    const local = Array.isArray(localState[k]) ? localState[k] : [];
+    const borrados = idsComoSet(mergeTombstones(cloudData[tk], localState[tk]));
+    const cloudIds = new Set(cloud.map(function(i){ return i && i.id; }));
+    return local.some(function(i){ return i && i.id != null && !cloudIds.has(i.id) && !borrados.has(i.id) && esRegistroLocalReciente(i); });
+  });
+  const hayEnColSinTombstone = otras.some(function(k){
     const cloud = Array.isArray(cloudData[k]) ? cloudData[k] : [];
     const local = Array.isArray(localState[k]) ? localState[k] : [];
     const cloudIds = new Set(cloud.map(function(i){ return i && i.id; }));
     return local.some(function(i){ return i && i.id != null && !cloudIds.has(i.id) && esRegistroLocalReciente(i); });
   });
+  return hayEnColConTombstone || hayEnColSinTombstone;
 }
 function resolverFileNoDuplicados(files){
   // Si dos dispositivos crearon un file con el mismo número casi al mismo tiempo
@@ -5830,20 +5889,29 @@ function maxPresupuestoNo(presupuestos){
 }
 function mergeStateConCloud(cloudData, localState){
   const cloud = cloudData || {};
-  const filesMerged = resolverFileNoDuplicados(mergeArraysById(cloud.files, localState.files));
-  const presupuestosMerged = resolverPresupuestoNoDuplicados(mergeArraysById(cloud.presupuestos, localState.presupuestos));
+  const deletedFileIds = podarTombstonesViejos(mergeTombstones(cloud.deletedFileIds, localState.deletedFileIds));
+  const deletedMovIds = podarTombstonesViejos(mergeTombstones(cloud.deletedMovIds, localState.deletedMovIds));
+  const deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(cloud.deletedPresupuestoIds, localState.deletedPresupuestoIds));
+  const deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(cloud.deletedUsuarioIds, localState.deletedUsuarioIds));
+
+  const filesMerged = resolverFileNoDuplicados(mergeArraysById(cloud.files, localState.files, idsComoSet(deletedFileIds)));
+  const presupuestosMerged = resolverPresupuestoNoDuplicados(mergeArraysById(cloud.presupuestos, localState.presupuestos, idsComoSet(deletedPresupuestoIds)));
   return {
     files: filesMerged,
-    movs: mergeArraysById(cloud.movs, localState.movs),
+    movs: mergeArraysById(cloud.movs, localState.movs, idsComoSet(deletedMovIds)),
     clientes: mergeArraysById(cloud.clientes, localState.clientes),
     presupuestos: presupuestosMerged,
     creditosMayoristas: mergeArraysById(cloud.creditosMayoristas, localState.creditosMayoristas),
-    usuarios: mergeArraysById(cloud.usuarios, localState.usuarios),
+    usuarios: mergeArraysById(cloud.usuarios, localState.usuarios, idsComoSet(deletedUsuarioIds)),
     mayoristas: mergeStringSets(cloud.mayoristas, localState.mayoristas),
     gastoCategorias: (localState.gastoCategorias && localState.gastoCategorias.length) ? localState.gastoCategorias : (cloud.gastoCategorias || GASTO_CATEGORIAS_DEFAULT.slice()),
     nextFileNo: Math.max(cloud.nextFileNo || 1, localState.nextFileNo || 1, maxFileNoNumerico(filesMerged) + 1),
     nextPresupuestoNo: Math.max(cloud.nextPresupuestoNo || 1, localState.nextPresupuestoNo || 1, maxPresupuestoNo(presupuestosMerged) + 1),
-    adminAuth: localState.adminAuth || cloud.adminAuth || Object.assign({}, ADMIN_AUTH_DEFAULT)
+    adminAuth: localState.adminAuth || cloud.adminAuth || Object.assign({}, ADMIN_AUTH_DEFAULT),
+    deletedFileIds: deletedFileIds,
+    deletedMovIds: deletedMovIds,
+    deletedPresupuestoIds: deletedPresupuestoIds,
+    deletedUsuarioIds: deletedUsuarioIds
   };
 }
 function pushToCloud(){
@@ -5870,6 +5938,10 @@ function pushToCloud(){
     state.gastoCategorias = merged.gastoCategorias;
     state.nextFileNo = merged.nextFileNo;
     state.nextPresupuestoNo = merged.nextPresupuestoNo;
+    state.deletedFileIds = merged.deletedFileIds;
+    state.deletedMovIds = merged.deletedMovIds;
+    state.deletedPresupuestoIds = merged.deletedPresupuestoIds;
+    state.deletedUsuarioIds = merged.deletedUsuarioIds;
     sanearSaldosFiles();
     persist();
     renderAll();
@@ -6007,6 +6079,7 @@ function eliminarVendedor(id){
   const v = state.usuarios.find(u => u.id === id);
   if(!v) return;
   if(!confirm(`¿Eliminar el usuario "${v.nombre || v.usuario}"? Ya no va a poder ingresar.`)) return;
+  marcarEliminado(state, 'deletedUsuarioIds', id);
   state.usuarios = state.usuarios.filter(u => u.id !== id);
   toast('Vendedor eliminado.', 'success');
   save();
