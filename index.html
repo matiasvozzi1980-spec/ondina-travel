@@ -1258,6 +1258,19 @@ service cloud.firestore {
     </div>
 
     <div class="bg-white rounded-xl border border-line p-4 mb-6">
+      <h3 class="font-display text-lg mb-2">Espacio en la nube (imágenes)</h3>
+      <p class="text-sm opacity-70 mb-2">
+        Todas las capturas de pantalla que se pegan en files y presupuestos se guardan dentro del mismo
+        documento compartido en la nube, que tiene un límite de 1MB. Si aparece el error
+        <span class="font-mono-num">"cannot be written because its size... exceeds the maximum allowed size"</span>,
+        significa que ese límite se superó y nada se está guardando en la nube hasta liberar espacio.
+        Usá este botón para achicar las imágenes ya guardadas (sin borrar ninguna) y volver a habilitar la sincronización.
+      </p>
+      <button onclick="optimizarImagenesGuardadas()" class="btn-primary">Optimizar imágenes guardadas (liberar espacio)</button>
+      <p id="optimizar-imagenes-msg" class="text-sm mt-2"></p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-line p-4 mb-6">
       <h3 class="font-display text-lg mb-2">Usuarios y permisos</h3>
       <p class="text-sm opacity-70 mb-3">
         Creá un usuario para cada vendedor. Al ingresar con esas credenciales, solo pueden cargar un presupuesto nuevo o una venta,
@@ -3938,8 +3951,8 @@ function eliminarMayorista(index){
 let fileImagenesTemp = [];
 let presupuestoImagenesTemp = [];
 let vendedorOrigenConversion = null;
-const IMG_MAX_ANCHO = 1000;
-const IMG_CALIDAD = 0.7;
+const IMG_MAX_ANCHO = 800;
+const IMG_CALIDAD = 0.55;
 function imagenesTempDe(prefix){
   return prefix === 'file' ? fileImagenesTemp : presupuestoImagenesTemp;
 }
@@ -3997,6 +4010,67 @@ function setImagenesTemp(prefix, imagenes){
   if(prefix === 'file') fileImagenesTemp = (imagenes || []).slice();
   else presupuestoImagenesTemp = (imagenes || []).slice();
   renderImagenesThumbs(prefix);
+}
+
+/* ====================================================================
+   OPTIMIZAR IMÁGENES YA GUARDADAS (para liberar espacio en el documento
+   compartido de Firestore, que tiene un límite de 1MB)
+==================================================================== */
+function recomprimirDataUrl(dataUrl, maxAncho, calidad){
+  return new Promise(function(resolve){
+    const img = new Image();
+    img.onload = function(){
+      let w = img.width, h = img.height;
+      if(w > maxAncho){
+        h = Math.round(h * (maxAncho / w));
+        w = maxAncho;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', calidad));
+    };
+    img.onerror = function(){ resolve(dataUrl); }; // si falla, dejamos la original tal cual
+    img.src = dataUrl;
+  });
+}
+async function optimizarImagenesGuardadas(){
+  const UMBRAL_BYTES = 40000; // solo toca imágenes que ya pesan más de esto (en base64)
+  const OPT_MAX_ANCHO = 700;
+  const OPT_CALIDAD = 0.5;
+  const msgEl = document.getElementById('optimizar-imagenes-msg');
+  if(msgEl) msgEl.textContent = 'Optimizando imágenes, no cierres esta pantalla...';
+
+  let pesoAntes = 0, pesoDespues = 0, procesadas = 0;
+  const colecciones = [state.files, state.presupuestos];
+  for(const coleccion of colecciones){
+    for(const item of coleccion){
+      if(!Array.isArray(item.imagenes) || item.imagenes.length === 0) continue;
+      for(const img of item.imagenes){
+        if(!img || !img.dataUrl) continue;
+        const pesoOriginal = img.dataUrl.length;
+        if(pesoOriginal <= UMBRAL_BYTES) continue;
+        const nuevo = await recomprimirDataUrl(img.dataUrl, OPT_MAX_ANCHO, OPT_CALIDAD);
+        if(nuevo && nuevo.length < pesoOriginal){
+          pesoAntes += pesoOriginal;
+          pesoDespues += nuevo.length;
+          img.dataUrl = nuevo;
+          procesadas++;
+        }
+      }
+    }
+  }
+
+  if(procesadas === 0){
+    if(msgEl) msgEl.textContent = 'No había imágenes grandes para optimizar.';
+    toast('No había imágenes grandes para optimizar.', 'info');
+    return;
+  }
+  const liberadoKB = Math.max(0, Math.round((pesoAntes - pesoDespues) / 1024));
+  save();
+  const texto = `Se optimizaron ${procesadas} imagen(es) — se liberaron ~${liberadoKB} KB. Subiendo a la nube...`;
+  if(msgEl) msgEl.textContent = texto;
+  toast(texto, 'success');
 }
 
 /* ====================================================================
