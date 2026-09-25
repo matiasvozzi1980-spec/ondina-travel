@@ -4049,12 +4049,36 @@ function recomprimirDataUrl(dataUrl, maxAncho, calidad){
     img.src = dataUrl;
   });
 }
-async function optimizarImagenesGuardadas(){
-  const UMBRAL_BYTES = 40000; // solo toca imágenes que ya pesan más de esto (en base64)
-  const OPT_MAX_ANCHO = 700;
-  const OPT_CALIDAD = 0.5;
+function limpiarImagenesPresupuestosConvertidos(){
+  // Si un presupuesto ya se convirtió a un file, ese file guarda su PROPIA copia
+  // de las mismas imágenes — tenerlas duplicadas en el presupuesto es espacio
+  // desperdiciado en el documento compartido. Se puede liberar sin perder nada.
+  let liberadas = 0;
+  state.presupuestos.forEach(function(p){
+    if(p.estado === 'convertido' && p.fileIdConvertido && Array.isArray(p.imagenes) && p.imagenes.length){
+      const fileExiste = state.files.some(function(f){ return f.id === p.fileIdConvertido; });
+      if(fileExiste){
+        liberadas += p.imagenes.length;
+        p.imagenes = [];
+      }
+    }
+  });
+  return liberadas;
+}
+async function optimizarImagenesGuardadas(modoEmergencia){
+  // En modo normal (botón manual) somos conservadores: solo tocamos imágenes
+  // que todavía pesan bastante. En modo emergencia (se activa solo cuando la
+  // nube rechazó un guardado por superar 1MB) somos mucho más agresivos:
+  // recomprimimos TODAS las imágenes, no solo las grandes, porque cuando el
+  // problema es la ACUMULACIÓN de muchas imágenes ya "chicas" (no una sola
+  // gigante), el filtro conservador no libera nada.
+  const UMBRAL_BYTES = modoEmergencia ? 0 : 40000;
+  const OPT_MAX_ANCHO = modoEmergencia ? 550 : 700;
+  const OPT_CALIDAD = modoEmergencia ? 0.4 : 0.5;
   const msgEl = document.getElementById('optimizar-imagenes-msg');
   if(msgEl) msgEl.textContent = 'Optimizando imágenes, no cierres esta pantalla...';
+
+  const duplicadasLiberadas = limpiarImagenesPresupuestosConvertidos();
 
   let pesoAntes = 0, pesoDespues = 0, procesadas = 0;
   const colecciones = [state.files, state.presupuestos];
@@ -4076,11 +4100,11 @@ async function optimizarImagenesGuardadas(){
     }
   }
 
-  if(procesadas === 0){
-    if(msgEl) msgEl.textContent = 'No había imágenes grandes para optimizar.';
-    toast('No había imágenes grandes para optimizar.', 'info');
+  if(procesadas === 0 && duplicadasLiberadas === 0){
+    if(msgEl) msgEl.textContent = 'No había imágenes para optimizar.';
+    toast('No había imágenes para optimizar.', 'info');
     if(autoOptimizandoPorTamano){
-      setSyncStatus('error', 'La nube está llena y no hay imágenes grandes para reducir. Borrá imágenes viejas de algún file o presupuesto para poder seguir guardando.');
+      setSyncStatus('error', 'La nube está llena y no se pudo liberar espacio automáticamente. Borrá imágenes viejas de algún file o presupuesto para poder seguir guardando.');
     }
     return;
   }
@@ -6033,7 +6057,7 @@ function pushToCloud(){
       // arreglarlo solos: comprimimos las imágenes guardadas y reintentamos.
       autoOptimizandoPorTamano = true;
       setSyncStatus('connecting', 'La nube está muy llena — optimizando imágenes automáticamente...');
-      optimizarImagenesGuardadas().finally(function(){ autoOptimizandoPorTamano = false; });
+      optimizarImagenesGuardadas(true).finally(function(){ autoOptimizandoPorTamano = false; });
       return;
     }
     setSyncStatus('error', 'Error al guardar en la nube: ' + err.message);
