@@ -375,7 +375,7 @@
   <button class="tab-btn" data-tab="listado" onclick="switchTab('listado')">Listado de files</button>
   <button class="tab-btn" data-tab="cuentas" onclick="switchTab('cuentas')">Cuentas corrientes</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
-  <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja, ingresos y gastos</button>
+  <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja</button>
   <button class="tab-btn" data-tab="reportes" onclick="switchTab('reportes')">Reportes</button>
   <button class="tab-btn" data-tab="config" onclick="switchTab('config')">Configuración</button>
 </nav>
@@ -929,7 +929,7 @@
   </div>
 
   <section id="tab-caja" class="tab-section hidden">
-    <h2 class="font-display text-2xl mb-4">Caja, ingresos y gastos</h2>
+    <h2 class="font-display text-2xl mb-4">Caja</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
       <form id="form-ingreso" class="bg-white rounded-xl border border-line p-4 grid grid-cols-2 gap-3 items-end">
@@ -3087,7 +3087,7 @@ function renderHistorial(){
     <tr class="border-b border-line">
       <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
-      <td class="py-2 px-3">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#FEF3C7; color:#92400E">${esc(m.categoriaGasto)}</span>` : ''}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
+      <td class="py-2 px-3" style="white-space:normal; overflow-wrap:anywhere; line-height:1.35;">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#FEF3C7; color:#92400E">${esc(m.categoriaGasto)}</span>` : ''}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
       <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
       <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
       <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
