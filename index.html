@@ -433,6 +433,16 @@
       </div>
     </div>
 
+    <div class="bg-white rounded-xl border border-line p-4 mb-6" id="bitacora-box">
+      <h3 class="font-display text-lg mb-2">Bitácora</h3>
+      <form id="bitacora-form" class="flex gap-2 mb-3 flex-wrap" onsubmit="guardarBitacora(event)">
+        <input type="text" id="bitacora-texto" class="input" style="flex:1 1 260px" placeholder="Algo que debemos recordar..." autocomplete="off">
+        <button type="submit" class="btn-primary" id="bitacora-btn">Agregar</button>
+        <button type="button" class="btn-ghost hidden" id="bitacora-cancel" onclick="cancelarEdicionBitacora()">Cancelar</button>
+      </form>
+      <div id="bitacora-lista" style="max-height:320px; overflow-y:auto;"></div>
+    </div>
+
     <div class="bg-white rounded-xl border border-line p-4 mb-6">
       <h3 class="font-display text-lg mb-2">Alertas de vencimiento</h3>
       <div id="alertas-wrap"></div>
@@ -1836,7 +1846,7 @@ const FILE_TABLE_COLS = 14;
 
 const GASTO_CATEGORIAS_DEFAULT = ['Alquiler','Servicios','Sueldos','Publicidad','Insumos','Impuestos','Comisiones bancarias','Otros'];
 const ADMIN_AUTH_DEFAULT = { usuario: 'admin', clave: 'ondina2026' };
-let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [], creditosMayoristas: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
+let state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: [], adminAuth: Object.assign({}, ADMIN_AUTH_DEFAULT), mayoristas: [], creditosMayoristas: [], bitacora: [], deletedBitacoraIds: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
 
 /* ====================================================================
    USUARIOS Y ROLES (vendedores con acceso restringido)
@@ -2212,6 +2222,8 @@ function load(){
       state.deletedMovIds = Array.isArray(data.deletedMovIds) ? data.deletedMovIds : [];
       state.deletedPresupuestoIds = Array.isArray(data.deletedPresupuestoIds) ? data.deletedPresupuestoIds : [];
       state.deletedUsuarioIds = Array.isArray(data.deletedUsuarioIds) ? data.deletedUsuarioIds : [];
+      state.bitacora = Array.isArray(data.bitacora) ? data.bitacora : [];
+      state.deletedBitacoraIds = Array.isArray(data.deletedBitacoraIds) ? data.deletedBitacoraIds : [];
     }catch(e){ console.error('No se pudo leer el almacenamiento local', e); }
     sanearSaldosFiles();
     seedMayoristasSiVacio();
@@ -3890,6 +3902,77 @@ function renderAll(){
   renderReportes();
   renderPresupuestos();
   renderUsuariosConfig();
+  renderBitacora();
+}
+
+/* ====================================================================
+   BITÁCORA (notas para recordar, con fecha/hora y autor)
+==================================================================== */
+let editingBitacoraId = null;
+function fmtFechaHora(ts){
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2,'0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function renderBitacora(){
+  const wrap = document.getElementById('bitacora-lista');
+  if(!wrap) return;
+  const items = [...(state.bitacora || [])].sort((a,b)=> b.id - a.id);
+  if(items.length === 0){
+    wrap.innerHTML = '<p class="text-sm opacity-50">Todavía no hay notas.</p>';
+    return;
+  }
+  wrap.innerHTML = items.map(b => `
+    <div class="flex items-start gap-3 py-2 border-b border-line">
+      <div class="flex-1 min-w-0">
+        <p class="text-sm" style="white-space:pre-wrap; overflow-wrap:anywhere;">${esc(b.texto)}</p>
+        <p class="text-xs opacity-50 mt-1">${fmtFechaHora(b.id)} · ${esc(b.autor || '—')}${b.editado ? ' · editado por ' + esc(b.editadoPor || '—') + ' (' + fmtFechaHora(b.editado) + ')' : ''}</p>
+      </div>
+      <button onclick="editarBitacora(${b.id})" class="btn-mini">Editar</button>
+      <button onclick="eliminarBitacora(${b.id})" class="btn-mini btn-mini-danger">Eliminar</button>
+    </div>
+  `).join('');
+}
+function guardarBitacora(e){
+  e.preventDefault();
+  const input = document.getElementById('bitacora-texto');
+  const texto = input.value.trim();
+  if(!texto) return;
+  if(!Array.isArray(state.bitacora)) state.bitacora = [];
+  if(editingBitacoraId){
+    const b = state.bitacora.find(x=>x.id===editingBitacoraId);
+    if(b){ b.texto = texto; b.editado = Date.now(); b.editadoPor = currentUserNombre || 'Administrador'; }
+  } else {
+    state.bitacora.push({ id: Date.now(), texto, autor: currentUserNombre || 'Administrador' });
+  }
+  cancelarEdicionBitacora();
+  save();
+}
+function editarBitacora(id){
+  const b = (state.bitacora||[]).find(x=>x.id===id);
+  if(!b) return;
+  editingBitacoraId = id;
+  const input = document.getElementById('bitacora-texto');
+  input.value = b.texto;
+  input.focus();
+  document.getElementById('bitacora-btn').textContent = 'Guardar';
+  document.getElementById('bitacora-cancel').classList.remove('hidden');
+}
+function cancelarEdicionBitacora(){
+  editingBitacoraId = null;
+  const input = document.getElementById('bitacora-texto');
+  if(input) input.value = '';
+  const btn = document.getElementById('bitacora-btn');
+  if(btn) btn.textContent = 'Agregar';
+  const c = document.getElementById('bitacora-cancel');
+  if(c) c.classList.add('hidden');
+}
+function eliminarBitacora(id){
+  if(!confirm('¿Eliminar esta nota de la bitácora?')) return;
+  marcarEliminado(state, 'deletedBitacoraIds', id);
+  state.bitacora = state.bitacora.filter(b=>b.id!==id);
+  if(editingBitacoraId === id) cancelarEdicionBitacora();
+  save();
 }
 
 /* ====================================================================
@@ -5673,7 +5756,7 @@ function resetAll(){
   const usuariosPrevios = state.usuarios;
   const adminAuthPrevio = state.adminAuth;
   const mayoristasPrevios = state.mayoristas;
-  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios, creditosMayoristas: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
+  state = { files: [], movs: [], clientes: [], nextFileNo: 1, presupuestos: [], nextPresupuestoNo: 1, gastoCategorias: GASTO_CATEGORIAS_DEFAULT.slice(), usuarios: usuariosPrevios, adminAuth: adminAuthPrevio, mayoristas: mayoristasPrevios, creditosMayoristas: [], bitacora: [], deletedBitacoraIds: [], deletedFileIds: [], deletedMovIds: [], deletedPresupuestoIds: [], deletedUsuarioIds: [] };
   save();
 }
 
@@ -5744,6 +5827,8 @@ function aplicarSnapshotCloud(data){
   state.deletedMovIds = podarTombstonesViejos(mergeTombstones(data.deletedMovIds, state.deletedMovIds));
   state.deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(data.deletedPresupuestoIds, state.deletedPresupuestoIds));
   state.deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(data.deletedUsuarioIds, state.deletedUsuarioIds));
+  state.deletedBitacoraIds = podarTombstonesViejos(mergeTombstones(data.deletedBitacoraIds, state.deletedBitacoraIds));
+  state.bitacora = mergeArraysCloudFirst(data.bitacora, state.bitacora, idsComoSet(state.deletedBitacoraIds));
   state.files = mergeArraysCloudFirst(data.files, state.files, idsComoSet(state.deletedFileIds));
   state.movs = mergeArraysCloudFirst(data.movs, state.movs, idsComoSet(state.deletedMovIds));
   state.clientes = mergeArraysCloudFirst(data.clientes, state.clientes);
@@ -5915,7 +6000,7 @@ function podarTombstonesViejos(list){
 function detectarSoloLocal(cloudData, localState){
   const pares = [
     ['files','deletedFileIds'], ['movs','deletedMovIds'],
-    ['presupuestos','deletedPresupuestoIds'], ['usuarios','deletedUsuarioIds']
+    ['presupuestos','deletedPresupuestoIds'], ['usuarios','deletedUsuarioIds'], ['bitacora','deletedBitacoraIds']
   ];
   const otras = ['clientes','creditosMayoristas'];
   const todasBorradasVacias = new Set();
@@ -6010,6 +6095,7 @@ function mergeStateConCloud(cloudData, localState){
   const deletedMovIds = podarTombstonesViejos(mergeTombstones(cloud.deletedMovIds, localState.deletedMovIds));
   const deletedPresupuestoIds = podarTombstonesViejos(mergeTombstones(cloud.deletedPresupuestoIds, localState.deletedPresupuestoIds));
   const deletedUsuarioIds = podarTombstonesViejos(mergeTombstones(cloud.deletedUsuarioIds, localState.deletedUsuarioIds));
+  const deletedBitacoraIds = podarTombstonesViejos(mergeTombstones(cloud.deletedBitacoraIds, localState.deletedBitacoraIds));
 
   const filesFusionados = dedupExactos(
     mergeArraysById(cloud.files, localState.files, idsComoSet(deletedFileIds)),
@@ -6028,6 +6114,8 @@ function mergeStateConCloud(cloudData, localState){
     presupuestos: presupuestosMerged,
     creditosMayoristas: mergeArraysById(cloud.creditosMayoristas, localState.creditosMayoristas),
     usuarios: mergeArraysById(cloud.usuarios, localState.usuarios, idsComoSet(deletedUsuarioIds)),
+    bitacora: mergeArraysById(cloud.bitacora, localState.bitacora, idsComoSet(deletedBitacoraIds)),
+    deletedBitacoraIds: deletedBitacoraIds,
     mayoristas: mergeStringSets(cloud.mayoristas, localState.mayoristas),
     gastoCategorias: (localState.gastoCategorias && localState.gastoCategorias.length) ? localState.gastoCategorias : (cloud.gastoCategorias || GASTO_CATEGORIAS_DEFAULT.slice()),
     nextFileNo: Math.max(cloud.nextFileNo || 1, localState.nextFileNo || 1, maxFileNoNumerico(filesMerged) + 1),
@@ -6067,6 +6155,8 @@ function pushToCloud(){
     state.deletedMovIds = merged.deletedMovIds;
     state.deletedPresupuestoIds = merged.deletedPresupuestoIds;
     state.deletedUsuarioIds = merged.deletedUsuarioIds;
+    state.bitacora = merged.bitacora;
+    state.deletedBitacoraIds = merged.deletedBitacoraIds;
     sanearSaldosFiles();
     persist();
     renderAll();
