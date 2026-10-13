@@ -721,6 +721,7 @@
       <h3 class="font-display text-xl mb-3">
         <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:var(--terracotta)"></span>
         Lo que nos deben los clientes
+        <span id="cc-total-clientes-titulo" class="font-mono-num text-base ml-2" style="color:var(--terracotta)"></span>
       </h3>
       <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6">
         <table class="w-full text-sm">
@@ -747,6 +748,7 @@
       <h3 class="font-display text-xl mb-3">
         <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:var(--gold)"></span>
         Lo que le debemos a los mayoristas
+        <span id="cc-total-mayoristas-titulo" class="font-mono-num text-base ml-2" style="color:var(--gold)"></span>
       </h3>
       <div class="overflow-x-auto bg-white rounded-xl border border-line mb-6" id="cc-mayoristas-outer">
         <table class="w-full text-sm">
@@ -3530,6 +3532,17 @@ function renderCuentas(){
     if(f.saldoCliente > 0) t.porCobrar += f.saldoCliente;
     if(f.saldoMayorista > 0) t.porPagar += f.saldoMayorista;
   });
+  // Totales junto a cada título (según filtro de moneda)
+  const fmtTotales = function(campo){
+    const partes = [];
+    if(filtroMoneda !== 'ARS') partes.push(fmt(totUSD[campo], 'USD'));
+    if(filtroMoneda !== 'USD') partes.push(fmt(totARS[campo], 'ARS'));
+    return '— Total: ' + partes.join(' · ');
+  };
+  const elTotC = document.getElementById('cc-total-clientes-titulo');
+  if(elTotC) elTotC.textContent = fmtTotales('porCobrar');
+  const elTotM = document.getElementById('cc-total-mayoristas-titulo');
+  if(elTotM) elTotM.textContent = fmtTotales('porPagar');
   // ---- CLIENTES ----
   let clienteFiles = filtroEstado === 'pendientes'
     ? files.filter(f=>f.saldoCliente > 0)
