@@ -875,6 +875,35 @@
     </div>
   </div>
 
+  <!-- MODAL: MODIFICAR VALORES (VENTA / NETO) DE UN FILE YA CARGADO -->
+  <div id="modal-ajuste-valores" class="modal hidden" style="z-index:160;">
+    <div class="modal-card">
+      <div class="flex justify-between items-center mb-3">
+        <h3 id="ajuste-titulo" class="font-display text-xl">Modificar valores del file</h3>
+        <button onclick="cerrarAjusteValores()" class="text-2xl leading-none">&times;</button>
+      </div>
+      <p class="text-sm opacity-70 mb-3">Cambia el precio de venta y/o el costo neto conservando lo ya cobrado y pagado. La diferencia queda registrada en el historial y se ajusta en los saldos.</p>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="label">Venta actual</label>
+          <p id="ajuste-venta-actual" class="font-mono-num font-semibold"></p>
+          <label class="label mt-2">Venta nueva</label>
+          <input type="number" step="0.01" min="0" id="ajuste-venta-nueva" class="input" oninput="actualizarPreviewAjuste()">
+        </div>
+        <div>
+          <label class="label">Neto actual</label>
+          <p id="ajuste-neto-actual" class="font-mono-num font-semibold"></p>
+          <label class="label mt-2">Neto nuevo</label>
+          <input type="number" step="0.01" min="0" id="ajuste-neto-nuevo" class="input" oninput="actualizarPreviewAjuste()">
+        </div>
+      </div>
+      <label class="label">Motivo (opcional)</label>
+      <input type="text" id="ajuste-motivo" class="input mb-3" placeholder="Ej: se bajan 2 pasajeros">
+      <div id="ajuste-preview" class="text-sm bg-paper border border-line rounded-lg p-3 mb-3"></div>
+      <button onclick="guardarAjusteValores()" class="btn-primary w-full">Confirmar modificación</button>
+    </div>
+  </div>
+
   <!-- MODAL: EDITAR SALDO A FAVOR DE UN FILE PUNTUAL -->
   <div id="modal-favor-file" class="modal hidden">
     <div class="modal-card">
@@ -1803,6 +1832,7 @@ service cloud.firestore {
       </div>
       <div class="mb-4">
         <button type="button" onclick="pagoDirectoAlMayorista(currentFileId)" class="btn-ghost w-full solo-admin-accion">Cliente pagó directo al mayorista (sin pasar por caja)</button>
+        <button type="button" onclick="abrirAjusteValores(currentFileId)" class="btn-ghost w-full mt-2 solo-admin-accion">Modificar valores del file (venta / neto) — ej. se baja un pasajero</button>
       </div>
     </div>
 
@@ -1836,7 +1866,17 @@ function sinCajaTexto(m){
   // Texto para movimientos que no mueven plata de ninguna caja física.
   if(m.categoria === 'consolidacion') return 'Sin caja (consolidado)';
   if(m.categoria === 'pago-directo-mayorista') return 'Sin caja (pago directo al mayorista)';
+  if(m.categoria === 'ajuste-file') return 'Sin caja (ajuste de valores)';
   return 'Sin caja (saldo a favor)';
+}
+function movTipoLabel(m){
+  if(m.categoria === 'ajuste-file') return 'Ajuste';
+  return m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso';
+}
+function movMontoHtml(m){
+  // Los ajustes de valores de un file no mueven plata de ninguna caja: se muestran en gris, sin signo.
+  if(m.categoria === 'ajuste-file') return `<span style="color:#6B7280">${fmt(m.monto, m.moneda)}</span>`;
+  return `<span style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</span>`;
 }
 const MONEDAS = ['USD','ARS'];
 const MONEDA_SYM = {USD:'US$', ARS:'AR$'};
@@ -3102,9 +3142,9 @@ function renderHistorial(){
       <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3 font-mono-num">${m.fileNo ? '#'+m.fileNo : '—'}</td>
       <td class="py-2 px-3" style="white-space:normal; overflow-wrap:anywhere; line-height:1.35;">${esc(m.concepto)}${m.categoriaGasto ? `<br><span class="badge" style="background:#FEF3C7; color:#92400E">${esc(m.categoriaGasto)}</span>` : ''}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
+      <td class="py-2 px-3 font-mono-num text-right">${movMontoHtml(m)}</td>
       <td class="py-2 px-3"><span class="badge" style="background:#E5E7EB; color:#374151">${m.moneda}</span></td>
-      <td class="py-2 px-3">${m.tipo==='ingreso'?'Ingreso':'Egreso'}</td>
+      <td class="py-2 px-3">${movTipoLabel(m)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">' + sinCajaTexto(m) + '</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
@@ -3210,7 +3250,7 @@ async function generarComprobante(movId){
   filas.push(['Concepto', esc(m.concepto)]);
   if(m.categoriaGasto) filas.push(['Categoría', esc(m.categoriaGasto)]);
   filas.push(['Caja', m.caja ? esc(CAJA_LABELS[m.caja] || m.caja) : sinCajaTexto(m)]);
-  filas.push(['Tipo', m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso']);
+  filas.push(['Tipo', movTipoLabel(m)]);
   if(m.tipoCambio) filas.push(['Tipo de cambio', String(m.tipoCambio)]);
 
   const filasHtml = filas.map(function(r){
@@ -3218,8 +3258,9 @@ async function generarComprobante(movId){
       '<td style="padding:8px 0;font-size:14px;">' + r[1] + '</td></tr>';
   }).join('');
 
-  const montoColor = m.tipo === 'ingreso' ? '#15803D' : '#B91C1C';
-  const montoTexto = (m.tipo === 'ingreso' ? '+ ' : '- ') + fmt(m.monto, m.moneda);
+  const esAjuste = m.categoria === 'ajuste-file';
+  const montoColor = esAjuste ? '#6B7280' : (m.tipo === 'ingreso' ? '#15803D' : '#B91C1C');
+  const montoTexto = esAjuste ? fmt(m.monto, m.moneda) : ((m.tipo === 'ingreso' ? '+ ' : '- ') + fmt(m.monto, m.moneda));
 
   const contenedor = document.createElement('div');
   contenedor.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff;padding:36px 40px;font-family:Inter,sans-serif;width:520px;color:#161616;';
@@ -5026,7 +5067,7 @@ function renderFileHistory(fileId){
     <tr class="border-b border-line">
       <td class="py-2 px-3">${fmtFechaCorta(m.fecha)}</td>
       <td class="py-2 px-3">${esc(m.concepto)}${m.tipoCambio ? `<br><span class="opacity-50 text-xs">T.C. ${m.tipoCambio}</span>` : ''}</td>
-      <td class="py-2 px-3 font-mono-num text-right" style="color:${m.tipo==='ingreso'?'var(--green)':'var(--terracotta)'}">${m.tipo==='ingreso'?'+':'-'} ${fmt(m.monto, m.moneda)}</td>
+      <td class="py-2 px-3 font-mono-num text-right">${movMontoHtml(m)}</td>
       <td class="py-2 px-3">${m.caja ? (CAJA_LABELS[m.caja] || m.caja) : '<span class="opacity-50">' + sinCajaTexto(m) + '</span>'}</td>
       <td class="py-2 px-3 text-right">
         <button onclick="generarComprobante(${m.id})" class="btn-mini">Comprobante</button>
@@ -5244,6 +5285,79 @@ function consolidarSaldoCliente(fileId){
   save();
   openDetail(f.id);
   toast('Saldo consolidado.', 'success');
+}
+
+let ajusteFileId = null;
+function abrirAjusteValores(fileId){
+  const f = state.files.find(x=>x.id===fileId);
+  if(!f) return;
+  ajusteFileId = fileId;
+  document.getElementById('ajuste-titulo').textContent = `Modificar valores — File #${f.fileNo}`;
+  document.getElementById('ajuste-venta-actual').textContent = fmt(f.precioVenta, f.moneda);
+  document.getElementById('ajuste-neto-actual').textContent = fmt(f.costoNeto, f.moneda);
+  document.getElementById('ajuste-venta-nueva').value = f.precioVenta;
+  document.getElementById('ajuste-neto-nuevo').value = f.costoNeto;
+  document.getElementById('ajuste-motivo').value = '';
+  actualizarPreviewAjuste();
+  document.getElementById('modal-ajuste-valores').classList.remove('hidden');
+}
+function cerrarAjusteValores(){
+  document.getElementById('modal-ajuste-valores').classList.add('hidden');
+  ajusteFileId = null;
+}
+function calcularAjuste(f){
+  const ventaNueva = redondear2(parseFloat(document.getElementById('ajuste-venta-nueva').value));
+  const netoNuevo = redondear2(parseFloat(document.getElementById('ajuste-neto-nuevo').value));
+  if(isNaN(ventaNueva) || isNaN(netoNuevo) || ventaNueva < 0 || netoNuevo < 0) return null;
+  const deltaVenta = redondear2(ventaNueva - f.precioVenta);
+  const deltaNeto = redondear2(netoNuevo - f.costoNeto);
+  return {
+    ventaNueva, netoNuevo, deltaVenta, deltaNeto,
+    saldoClienteNuevo: saldoSano(f.saldoCliente + deltaVenta),
+    saldoMayoristaNuevo: saldoSano(f.saldoMayorista + deltaNeto)
+  };
+}
+function actualizarPreviewAjuste(){
+  const f = state.files.find(x=>x.id===ajusteFileId);
+  const box = document.getElementById('ajuste-preview');
+  if(!f || !box) return;
+  const a = calcularAjuste(f);
+  if(!a){ box.textContent = 'Ingresá valores válidos.'; return; }
+  const mon = f.moneda;
+  const lineas = [];
+  lineas.push(`Comisión: ${fmt(f.precioVenta - f.costoNeto, mon)} → <strong>${fmt(a.ventaNueva - a.netoNuevo, mon)}</strong>`);
+  if(a.saldoClienteNuevo > 0) lineas.push(`Cliente: le falta pagar <strong>${fmt(a.saldoClienteNuevo, mon)}</strong>`);
+  else if(a.saldoClienteNuevo < 0) lineas.push(`Cliente: pagó de más — le debemos <strong style="color:var(--terracotta)">${fmt(-a.saldoClienteNuevo, mon)}</strong> (a devolver o usar como crédito)`);
+  else lineas.push('Cliente: saldado.');
+  if(a.saldoMayoristaNuevo > 0) lineas.push(`Mayorista: le debemos <strong>${fmt(a.saldoMayoristaNuevo, mon)}</strong>`);
+  else if(a.saldoMayoristaNuevo < 0) lineas.push(`Mayorista: queda <strong style="color:#3730A3">${fmt(-a.saldoMayoristaNuevo, mon)} a favor nuestro</strong> con ${esc(f.mayorista || 'el mayorista')}`);
+  else lineas.push('Mayorista: saldado.');
+  box.innerHTML = lineas.join('<br>');
+}
+function guardarAjusteValores(){
+  const f = state.files.find(x=>x.id===ajusteFileId);
+  if(!f) return;
+  const a = calcularAjuste(f);
+  if(!a){ toast('Ingresá valores válidos.', 'error'); return; }
+  if(a.deltaVenta === 0 && a.deltaNeto === 0){ toast('No cambiaste ningún valor.', 'info'); return; }
+  const motivo = document.getElementById('ajuste-motivo').value.trim();
+  const mon = f.moneda;
+  const mov = {
+    id: Date.now(),
+    fecha: todayStr(),
+    fileId: f.id,
+    fileNo: f.fileNo,
+    concepto: `Modificación de valores — File #${f.fileNo} (${clienteNombreCompleto(f)}): venta ${fmt(f.precioVenta, mon)} → ${fmt(a.ventaNueva, mon)}, neto ${fmt(f.costoNeto, mon)} → ${fmt(a.netoNuevo, mon)}${motivo ? ' — ' + motivo : ''} (por ${currentUserNombre || 'Administrador'})`,
+    monto: Math.max(Math.abs(a.deltaVenta), Math.abs(a.deltaNeto)),
+    moneda: mon, tipo: 'ajuste', caja: null, categoria: 'ajuste-file',
+    deltaVenta: a.deltaVenta, deltaNeto: a.deltaNeto
+  };
+  aplicarEfectoMov(mov);
+  state.movs.push(mov);
+  cerrarAjusteValores();
+  save();
+  openDetail(f.id);
+  toast('Valores modificados y registrados en el historial.', 'success');
 }
 
 function pagoDirectoAlMayorista(fileId){
@@ -5474,6 +5588,14 @@ function revertirEfectoMov(m){
     f.saldoCliente += m.monto;
     f.saldoMayorista += m.monto;
   }
+  if(m.categoria === 'ajuste-file'){
+    // Deshace el cambio de valores: vuelve venta/neto y los saldos a como estaban antes del ajuste.
+    f.precioVenta = redondear2(f.precioVenta - (m.deltaVenta || 0));
+    f.costoNeto = redondear2(f.costoNeto - (m.deltaNeto || 0));
+    f.comision = redondear2(f.precioVenta - f.costoNeto);
+    f.saldoCliente = redondear2(f.saldoCliente - (m.deltaVenta || 0));
+    f.saldoMayorista = redondear2(f.saldoMayorista - (m.deltaNeto || 0));
+  }
   if(m.categoria === 'credito-mayorista'){
     f.saldoMayorista += m.monto;
     (m.creditoFuentes || []).forEach(src=>{
@@ -5504,6 +5626,13 @@ function aplicarEfectoMov(m){
   if(m.categoria === 'pago-directo-mayorista'){
     f.saldoCliente -= m.monto;
     f.saldoMayorista -= m.monto;
+  }
+  if(m.categoria === 'ajuste-file'){
+    f.precioVenta = redondear2(f.precioVenta + (m.deltaVenta || 0));
+    f.costoNeto = redondear2(f.costoNeto + (m.deltaNeto || 0));
+    f.comision = redondear2(f.precioVenta - f.costoNeto);
+    f.saldoCliente = redondear2(f.saldoCliente + (m.deltaVenta || 0));
+    f.saldoMayorista = redondear2(f.saldoMayorista + (m.deltaNeto || 0));
   }
   if(m.categoria === 'credito-mayorista'){
     // Vuelve a tomar el crédito de las mismas fuentes que tenía originalmente,
@@ -5566,6 +5695,10 @@ let editingMovId = null;
 function openEditMovModal(id){
   const m = state.movs.find(x=>x.id===id);
   if(!m) return;
+  if(m.categoria === 'ajuste-file'){
+    toast('Un ajuste de valores no se edita: eliminalo (se deshace el cambio) y volvé a cargar "Modificar valores" con los datos correctos.', 'info');
+    return;
+  }
   editingMovId = id;
   document.getElementById('mov-fecha').value = m.fecha;
   document.getElementById('mov-concepto').value = m.concepto;
