@@ -875,6 +875,26 @@
     </div>
   </div>
 
+  <!-- MODAL: DEVOLVER SALDO A FAVOR AL CLIENTE -->
+  <div id="modal-devolucion" class="modal hidden" style="z-index:160;">
+    <div class="modal-card">
+      <div class="flex justify-between items-center mb-3">
+        <h3 id="devolucion-titulo" class="font-display text-xl">Devolver saldo a favor al cliente</h3>
+        <button onclick="cerrarDevolucionCliente()" class="text-2xl leading-none">&times;</button>
+      </div>
+      <p id="devolucion-info" class="text-sm opacity-70 mb-3"></p>
+      <label class="label">Monto a devolver (<span id="devolucion-moneda">USD</span>)</label>
+      <input type="number" step="0.01" min="0" id="devolucion-monto" class="input mb-2">
+      <label class="label">Caja de la que sale la plata</label>
+      <select id="devolucion-caja" class="input mb-2">
+        <option>Banco</option><option>Ivana</option><option>Raul</option><option>Casa</option><option>Juli</option>
+      </select>
+      <label class="label">Nota (opcional)</label>
+      <input type="text" id="devolucion-nota" class="input mb-3" placeholder="Ej: transferencia a su cuenta">
+      <button onclick="guardarDevolucionCliente()" class="btn-danger w-full">Registrar devolución</button>
+    </div>
+  </div>
+
   <!-- MODAL: MODIFICAR VALORES (VENTA / NETO) DE UN FILE YA CARGADO -->
   <div id="modal-ajuste-valores" class="modal hidden" style="z-index:160;">
     <div class="modal-card">
@@ -1814,6 +1834,7 @@ service cloud.firestore {
           <button type="submit" class="btn-primary w-full">Registrar cobro</button>
           <button type="button" id="btn-usar-credito-cliente" class="btn-ghost w-full mt-2 hidden" onclick="abrirUsarCreditoClienteModal()"></button>
           <button type="button" id="btn-consolidar-saldo" class="btn-ghost w-full mt-2 hidden solo-admin-accion" onclick="consolidarSaldoCliente(currentFileId)"></button>
+          <button type="button" id="btn-devolver-cliente" class="btn-ghost w-full mt-2 hidden solo-admin-accion" style="color:var(--terracotta); border-color:var(--terracotta)" onclick="abrirDevolucionCliente(currentFileId)"></button>
         </form>
         <form id="form-pago" class="border border-line rounded-lg p-3 bg-white">
           <p class="font-display mb-2">Registrar pago a mayorista</p>
@@ -4909,6 +4930,16 @@ function openDetail(id){
     }
   }
 
+  const btnDevolver = document.getElementById('btn-devolver-cliente');
+  if(btnDevolver){
+    if(redondear2(f.saldoCliente) < 0){
+      btnDevolver.classList.remove('hidden');
+      btnDevolver.textContent = `Devolver saldo a favor al cliente (${fmt(-f.saldoCliente, f.moneda)}) — sale de una caja`;
+    } else {
+      btnDevolver.classList.add('hidden');
+    }
+  }
+
   document.getElementById('form-cobro').reset();
   document.getElementById('form-pago').reset();
   renderFileHistory(id);
@@ -5287,6 +5318,60 @@ function consolidarSaldoCliente(fileId){
   toast('Saldo consolidado.', 'success');
 }
 
+let devolucionFileId = null;
+function abrirDevolucionCliente(fileId){
+  const f = state.files.find(x=>x.id===fileId);
+  if(!f) return;
+  const aFavor = Math.max(-redondear2(f.saldoCliente), 0);
+  if(aFavor <= 0){ toast('Este file no tiene saldo a favor del cliente.', 'info'); return; }
+  devolucionFileId = fileId;
+  document.getElementById('devolucion-titulo').textContent = `Devolver al cliente — File #${f.fileNo}`;
+  document.getElementById('devolucion-info').textContent = `${clienteNombreCompleto(f)} tiene ${fmt(aFavor, f.moneda)} a favor. La devolución sale de la caja que elijas y deja el saldo del cliente en cero (o lo que reste si devolvés una parte).`;
+  document.getElementById('devolucion-moneda').textContent = f.moneda;
+  document.getElementById('devolucion-monto').value = aFavor;
+  document.getElementById('devolucion-nota').value = '';
+  document.getElementById('modal-devolucion').classList.remove('hidden');
+}
+function cerrarDevolucionCliente(){
+  document.getElementById('modal-devolucion').classList.add('hidden');
+  devolucionFileId = null;
+}
+function guardarDevolucionCliente(){
+  const f = state.files.find(x=>x.id===devolucionFileId);
+  if(!f) return;
+  const aFavor = Math.max(-redondear2(f.saldoCliente), 0);
+  let monto = redondear2(parseFloat(document.getElementById('devolucion-monto').value));
+  const caja = document.getElementById('devolucion-caja').value;
+  const nota = document.getElementById('devolucion-nota').value.trim();
+  if(isNaN(monto) || monto <= 0){ toast('Ingresá un monto válido.', 'error'); return; }
+  if(monto > aFavor){ toast(`El cliente solo tiene ${fmt(aFavor, f.moneda)} a favor.`, 'error'); return; }
+
+  const saldoCaja = cajaBalance(caja, f.moneda);
+  if(saldoCaja < monto){
+    if(!confirm(
+      `⚠️ La caja "${CAJA_LABELS[caja]}" no tiene saldo suficiente en ${f.moneda}.\n\n` +
+      `Saldo disponible: ${fmt(saldoCaja, f.moneda)}\n` +
+      `Monto a devolver: ${fmt(monto, f.moneda)}\n\n` +
+      `¿Querés registrar la devolución de todas formas?`
+    )) return;
+  }
+
+  const mov = {
+    id: Date.now(),
+    fecha: todayStr(),
+    fileId: f.id,
+    fileNo: f.fileNo,
+    concepto: `Devolución al cliente — File #${f.fileNo} (${clienteNombreCompleto(f)})${nota ? ' — ' + nota : ''}`,
+    monto, moneda: f.moneda, tipo: 'egreso', caja, categoria: 'devolucion-cliente'
+  };
+  aplicarEfectoMov(mov);
+  state.movs.push(mov);
+  cerrarDevolucionCliente();
+  save();
+  openDetail(f.id);
+  toast(`Devolución registrada: ${fmt(monto, f.moneda)} salieron de ${CAJA_LABELS[caja]}.`, 'success');
+}
+
 let ajusteFileId = null;
 function abrirAjusteValores(fileId){
   const f = state.files.find(x=>x.id===fileId);
@@ -5588,6 +5673,7 @@ function revertirEfectoMov(m){
     f.saldoCliente += m.monto;
     f.saldoMayorista += m.monto;
   }
+  if(m.categoria === 'devolucion-cliente') f.saldoCliente -= m.monto;
   if(m.categoria === 'ajuste-file'){
     // Deshace el cambio de valores: vuelve venta/neto y los saldos a como estaban antes del ajuste.
     f.precioVenta = redondear2(f.precioVenta - (m.deltaVenta || 0));
@@ -5627,6 +5713,7 @@ function aplicarEfectoMov(m){
     f.saldoCliente -= m.monto;
     f.saldoMayorista -= m.monto;
   }
+  if(m.categoria === 'devolucion-cliente') f.saldoCliente += m.monto;
   if(m.categoria === 'ajuste-file'){
     f.precioVenta = redondear2(f.precioVenta + (m.deltaVenta || 0));
     f.costoNeto = redondear2(f.costoNeto + (m.deltaNeto || 0));
@@ -5714,7 +5801,7 @@ function openEditMovModal(id){
     cajaWrap.classList.add('hidden');
   }
 
-  if(m.categoria === 'cobro' || m.categoria === 'pago' || m.categoria === 'credito-mayorista' || m.categoria === 'credito-cliente' || m.categoria === 'pago-directo-mayorista'){
+  if(m.categoria === 'cobro' || m.categoria === 'pago' || m.categoria === 'credito-mayorista' || m.categoria === 'credito-cliente' || m.categoria === 'pago-directo-mayorista' || m.categoria === 'devolucion-cliente'){
     info.textContent = 'Este movimiento está asociado a un file. Si cambiás el monto, el saldo pendiente del file se ajustará automáticamente.';
   } else {
     info.textContent = '';
