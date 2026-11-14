@@ -1652,6 +1652,12 @@ service cloud.firestore {
       </div>
 
       <div>
+        <label class="label">Fecha de salida del viaje (opcional)</label>
+        <input type="date" id="file-fecha-salida" class="input">
+        <p class="text-xs opacity-50 mt-1">Aparece como recordatorio en las alertas del Dashboard cuando faltan 7 días o menos para la salida.</p>
+      </div>
+
+      <div>
         <label class="label">Fecha límite de vencimiento (opcional)</label>
         <input type="date" id="file-vencimiento" class="input">
         <p class="text-xs opacity-50 mt-1">Si hay saldos pendientes, este file aparecerá en las alertas del Dashboard cuando falten 3 días o menos, o cuando esté vencido.</p>
@@ -1740,6 +1746,10 @@ service cloud.firestore {
           <option value="Terrestre">Terrestre</option>
           <option value="Paquete">Paquete</option>
         </select>
+      </div>
+      <div>
+        <label class="label">Fecha de salida del viaje (opcional)</label>
+        <input type="date" id="presupuesto-fecha-salida" class="input">
       </div>
       <div>
         <label class="label">Cantidad de personas</label>
@@ -2814,6 +2824,7 @@ function renderProyeccionCobros(){
   `).join('') || `<tr><td colspan="7" class="py-4 px-3 text-center opacity-50">Sin saldos pendientes en ${dashCurrency}.</td></tr>`;
 }
 
+const SALIDA_AVISO_DIAS = 7; // recordatorio de salida de viaje: desde 7 días antes hasta el día de la salida
 function renderAlertas(){
   const wrap = document.getElementById('alertas-wrap');
   const alertas = state.files
@@ -2821,14 +2832,32 @@ function renderAlertas(){
     .filter(x=> x.info && (x.info.estado === 'vencido' || x.info.estado === 'porvencer'))
     .sort((a,b)=> a.info.dias - b.info.dias);
 
-  const dot = document.getElementById('files-alert-dot');
-  if(dot) dot.classList.toggle('hidden', alertas.length === 0);
+  const salidas = state.files
+    .filter(f=> f.fechaSalida)
+    .map(f=>({ f, dias: diasRestantes(f.fechaSalida) }))
+    .filter(x=> x.dias !== null && x.dias >= 0 && x.dias <= SALIDA_AVISO_DIAS)
+    .sort((a,b)=> a.dias - b.dias);
 
-  if(alertas.length === 0){
-    wrap.innerHTML = `<p class="text-sm opacity-50">No hay vencimientos próximos ni atrasados.</p>`;
+  const dot = document.getElementById('files-alert-dot');
+  if(dot) dot.classList.toggle('hidden', alertas.length === 0 && salidas.length === 0);
+
+  if(alertas.length === 0 && salidas.length === 0){
+    wrap.innerHTML = `<p class="text-sm opacity-50">No hay vencimientos ni salidas de viaje próximas.</p>`;
     return;
   }
-  wrap.innerHTML = alertas.map(({f, info})=>{
+  const salidasHtml = salidas.map(({f, dias})=>{
+    const badge = dias === 0
+      ? `<span class="badge badge-pendiente">Sale HOY</span>`
+      : `<span class="badge badge-parcial">Sale en ${dias} día(s)</span>`;
+    return `<div class="flex justify-between items-center gap-2 py-2 border-b border-line cursor-pointer" onclick="switchTab('files');openDetail(${f.id})">
+      <div>
+        <p class="text-sm font-semibold">✈️ #${f.fileNo} — ${esc(clienteNombreCompleto(f))} <span class="opacity-50">(${esc(f.destino)})</span></p>
+        <p class="text-xs opacity-60">Salida del viaje: ${fmtFechaCorta(f.fechaSalida)}${f.saldoCliente > 0 ? ' · Cliente debe ' + fmt(f.saldoCliente, f.moneda) : ''}</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">${badge}</div>
+    </div>`;
+  }).join('');
+  wrap.innerHTML = salidasHtml + alertas.map(({f, info})=>{
     const badge = info.estado === 'vencido'
       ? `<span class="badge badge-pendiente">Vencido hace ${Math.abs(info.dias)} día(s)</span>`
       : `<span class="badge badge-parcial">Vence en ${info.dias} día(s)</span>`;
@@ -3417,6 +3446,7 @@ async function generarPdfPresupuesto(id){
         '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;width:35%;">Cliente</td><td style="padding:6px 0;font-size:14px;">' + esc(clienteNombre) + '</td></tr>' +
         '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Destino</td><td style="padding:6px 0;font-size:14px;">' + esc(p.destino || '—') + '</td></tr>' +
         (p.tipoViaje ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Tipo de viaje</td><td style="padding:6px 0;font-size:14px;">' + esc(p.tipoViaje) + '</td></tr>' : '') +
+        (p.fechaSalida ? '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha de salida</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fechaSalida) + '</td></tr>' : '') +
         '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Cantidad de personas</td><td style="padding:6px 0;font-size:14px;">' + (p.personas || 1) + '</td></tr>' +
         '<tr><td style="padding:6px 0;color:#6B7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Fecha del presupuesto</td><td style="padding:6px 0;font-size:14px;">' + fmtFechaCorta(p.fecha) + '</td></tr>' +
       '</table>' +
@@ -4302,6 +4332,7 @@ function openFileModal(presupuesto){
   document.getElementById('file-precio').value = presupuesto ? presupuesto.precioVenta : '';
   document.getElementById('file-personas').value = presupuesto ? (presupuesto.personas || 1) : 1;
   document.getElementById('file-vencimiento').value = '';
+  document.getElementById('file-fecha-salida').value = presupuesto ? (presupuesto.fechaSalida || '') : '';
   document.getElementById('file-tc').value = '';
   document.getElementById('file-credito-mayorista').value = '0';
   document.getElementById('file-notas').value = presupuesto ? (presupuesto.notas || '') : '';
@@ -4340,6 +4371,7 @@ function openEditFileModal(id){
   document.getElementById('file-costo').value = f.costoNeto;
   document.getElementById('file-precio').value = f.precioVenta;
   document.getElementById('file-vencimiento').value = f.vencimiento || '';
+  document.getElementById('file-fecha-salida').value = f.fechaSalida || '';
   document.getElementById('file-tc').value = f.tipoCambio || '';
   document.getElementById('file-credito-mayorista').value = f.saldoMayorista < 0 ? (-f.saldoMayorista).toFixed(2) : '0';
   document.getElementById('file-notas').value = f.notas || '';
@@ -4412,6 +4444,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
   const costoNeto = parseFloat(document.getElementById('file-costo').value) || 0;
   const precioVenta = parseFloat(document.getElementById('file-precio').value) || 0;
   const vencimiento = document.getElementById('file-vencimiento').value || null;
+  const fechaSalida = document.getElementById('file-fecha-salida').value || null;
   const tipoCambio = parseFloat(document.getElementById('file-tc').value) || null;
   const creditoMayoristaManual = parseFloat(document.getElementById('file-credito-mayorista').value) || 0;
   const notas = document.getElementById('file-notas').value.trim();
@@ -4513,7 +4546,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
           comision: precioVenta - costoNeto,
           saldoCliente: precioVenta,
           saldoMayorista: costoNeto - creditoMayoristaManual,
-          vencimiento, tipoCambio,
+          vencimiento, fechaSalida, tipoCambio,
           notas, imagenes,
           vendedorNombre: vendedorOrigenConversion || currentUserNombre || 'Administrador'
         };
@@ -4560,6 +4593,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
     f.precioVenta = precioVenta;
     f.comision = precioVenta - costoNeto;
     f.vencimiento = vencimiento;
+    f.fechaSalida = fechaSalida;
     f.tipoCambio = tipoCambio;
     f.saldoCliente = precioVenta - cobradoPrevio;
     f.saldoMayorista = (costoNeto - pagadoPrevio) - creditoMayoristaManual;
@@ -4584,7 +4618,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
       comision: precioVenta - costoNeto,
       saldoCliente: precioVenta,
       saldoMayorista: costoNeto - creditoMayoristaManual,
-      vencimiento, tipoCambio,
+      vencimiento, fechaSalida, tipoCambio,
       notas, imagenes,
       vendedorNombre: currentUserNombre || 'Administrador'
     };
@@ -4635,6 +4669,7 @@ function openEditPresupuestoModal(id){
   document.getElementById('presupuesto-cliente-telefono').value = p.clienteTelefono || '';
   document.getElementById('presupuesto-destino').value = p.destino || '';
   document.getElementById('presupuesto-tipo-viaje').value = p.tipoViaje || '';
+  document.getElementById('presupuesto-fecha-salida').value = p.fechaSalida || '';
   document.getElementById('presupuesto-personas').value = p.personas || 1;
   renderMayoristaSelect(document.getElementById('presupuesto-mayorista'), p.mayorista || '');
   document.getElementById('presupuesto-moneda').value = p.moneda;
@@ -4684,6 +4719,7 @@ document.getElementById('presupuesto-form').addEventListener('submit', function(
     clienteTelefono: document.getElementById('presupuesto-cliente-telefono').value.trim(),
     destino,
     tipoViaje: document.getElementById('presupuesto-tipo-viaje').value,
+    fechaSalida: document.getElementById('presupuesto-fecha-salida').value || null,
     personas: parseInt(document.getElementById('presupuesto-personas').value) || 1,
     mayorista: document.getElementById('presupuesto-mayorista').value.trim(),
     moneda: document.getElementById('presupuesto-moneda').value,
