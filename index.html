@@ -123,7 +123,15 @@
   .sync-connecting{ background:#B45309; }
   .sync-on{ background:#15803D; }
   .sync-error{ background:#B91C1C; }
-  .sync-indicator{ display:flex; align-items:center; gap:4px; justify-content:flex-end; background:none; border:none; cursor:pointer; color:inherit; padding:0; margin-top:4px; font-family:'Inter',sans-serif; }
+  .sync-indicator{ display:flex; align-items:center; gap:8px; justify-content:center; border:none; cursor:pointer; color:#fff; padding:7px 14px; margin-top:4px; margin-left:auto; border-radius:999px; font-weight:700; font-family:'Inter',sans-serif; background:#6B7280; white-space:nowrap; }
+  .sync-indicator .sync-dot{ width:14px; height:14px; background:#fff !important; box-shadow:0 0 0 3px rgba(255,255,255,.35); }
+  .sync-pill-on{ background:#15803D; }
+  .sync-pill-connecting{ background:#B45309; }
+  .sync-pill-error{ background:#B91C1C; animation:syncPulse 1.2s infinite; }
+  .sync-pill-off{ background:#6B7280; }
+  @keyframes syncPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(185,28,28,.6); } 50%{ box-shadow:0 0 0 8px rgba(185,28,28,0); } }
+  #sync-banner{ display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#B91C1C; color:#fff; padding:12px 16px; text-align:center; font-weight:600; font-size:15px; box-shadow:0 2px 12px rgba(0,0,0,.3); }
+  #sync-banner button{ margin-left:12px; background:#fff; color:#B91C1C; border:none; border-radius:8px; padding:8px 16px; font-weight:800; cursor:pointer; font-size:14px; }
 
   /* Logo / wordmark */
   .brand-logo{ width:54px; height:54px; object-fit:contain; flex-shrink:0; }
@@ -297,6 +305,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
+<div id="sync-banner">⚠️ Tus cambios NO se están guardando en la nube. <button onclick="arreglarSincronizacion()" id="sync-banner-btn">ARREGLAR AHORA</button></div>
 <div id="toast-container" class="toast-container"></div>
 
 <div id="pin-gate" class="modal hidden" style="z-index:200;">
@@ -356,7 +365,7 @@
     <div class="text-right shrink-0">
       <p class="text-10 sm:text-xs uppercase tracking-widest opacity-50">Hoy</p>
       <p id="today-date" class="font-mono-num text-xs sm:text-sm"></p>
-      <button onclick="onSyncIndicatorClick()" class="sync-indicator text-10 sm:text-xs">
+      <button onclick="onSyncIndicatorClick()" id="sync-indicator-btn" class="sync-indicator sync-pill-off text-xs sm:text-sm">
         <span id="sync-dot" class="sync-dot sync-off"></span>
         <span id="sync-label">Modo local</span>
       </button>
@@ -4165,8 +4174,9 @@ function eliminarMayorista(index){
 let fileImagenesTemp = [];
 let presupuestoImagenesTemp = [];
 let vendedorOrigenConversion = null;
-const IMG_MAX_ANCHO = 800;
-const IMG_CALIDAD = 0.55;
+const IMG_MAX_ANCHO = 600;
+const IMG_CALIDAD = 0.5;
+const IMG_MAX_CHARS = 130000; // ~100 KB por imagen
 const IMAGENES_MAX_POR_ITEM = 6; // todas las imágenes comparten un único documento de 1MB en la nube — un file con demasiadas fotos puede llenarlo él solo
 function imagenesTempDe(prefix){
   return prefix === 'file' ? fileImagenesTemp : presupuestoImagenesTemp;
@@ -4197,15 +4207,18 @@ function comprimirImagen(blob, callback){
   reader.onload = function(ev){
     const img = new Image();
     img.onload = function(){
-      let w = img.width, h = img.height;
-      if(w > IMG_MAX_ANCHO){
-        h = Math.round(h * (IMG_MAX_ANCHO / w));
-        w = IMG_MAX_ANCHO;
+      // Se reduce solo hasta que la imagen pese poco (tope ~100 KB), así la nube casi nunca se llena
+      let ancho = Math.min(img.width, IMG_MAX_ANCHO), calidad = IMG_CALIDAD, out = '';
+      for(let i = 0; i < 6; i++){
+        const w = ancho, h = Math.round(img.height * (ancho / img.width));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        out = canvas.toDataURL('image/jpeg', calidad);
+        if(out.length <= IMG_MAX_CHARS) break;
+        ancho = Math.round(ancho * 0.85); calidad = Math.max(0.3, calidad - 0.05);
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', IMG_CALIDAD));
+      callback(out);
     };
     img.src = ev.target.result;
   };
@@ -4276,7 +4289,7 @@ async function optimizarImagenesGuardadas(modoEmergencia){
   // recomprimimos TODAS las imágenes, no solo las grandes, porque cuando el
   // problema es la ACUMULACIÓN de muchas imágenes ya "chicas" (no una sola
   // gigante), el filtro conservador no libera nada.
-  const UMBRAL_BYTES = modoEmergencia ? 0 : 40000;
+  const UMBRAL_BYTES = modoEmergencia ? 30000 : 40000;
   const OPT_MAX_ANCHO = modoEmergencia ? 550 : 700;
   const OPT_CALIDAD = modoEmergencia ? 0.4 : 0.5;
   const msgEl = document.getElementById('optimizar-imagenes-msg');
@@ -4306,7 +4319,7 @@ async function optimizarImagenesGuardadas(modoEmergencia){
 
   if(procesadas === 0 && duplicadasLiberadas === 0){
     if(msgEl) msgEl.textContent = 'No había imágenes para optimizar.';
-    toast('No había imágenes para optimizar.', 'info');
+    if(!autoOptimizandoPorTamano) toast('No había imágenes para optimizar.', 'info');
     if(autoOptimizandoPorTamano){
       setSyncStatus('error', 'La nube está llena y no se pudo liberar espacio automáticamente. Borrá imágenes viejas de algún file o presupuesto para poder seguir guardando.');
     }
@@ -4323,6 +4336,7 @@ async function optimizarImagenesGuardadas(modoEmergencia){
    MODAL: NUEVO FILE
 ==================================================================== */
 function openFileModal(presupuesto){
+  if(sincronizacionBloqueada()) return;
   editingFileId = null;
   presupuestoParaConvertir = presupuesto ? presupuesto.id : null;
   vendedorOrigenConversion = presupuesto ? (presupuesto.vendedorNombre || null) : null;
@@ -4647,6 +4661,7 @@ document.getElementById('file-form').addEventListener('submit', function(e){
    lo que precarga el modal de "Nuevo file" con sus datos.
 ==================================================================== */
 function openPresupuestoModal(){
+  if(sincronizacionBloqueada()) return;
   editingPresupuestoId = null;
   document.getElementById('presupuesto-modal-title').textContent = 'Nuevo presupuesto';
   document.getElementById('presupuesto-form').reset();
@@ -6056,29 +6071,62 @@ function getSyncConfig(){
     return raw ? JSON.parse(raw) : Object.assign({}, DEFAULT_SYNC_CONFIG);
   }catch(e){ return Object.assign({}, DEFAULT_SYNC_CONFIG); }
 }
+let syncEstado = 'off';
+let syncDetalle = '';
 function onSyncIndicatorClick(){
-  // Leer el estado ANTES de releer (releer lo cambia a "Releyendo..." y daba falsa alarma)
-  const labelPrev = document.getElementById('sync-label');
-  const textoPrev = labelPrev ? labelPrev.textContent : '';
+  if(syncEstado === 'error'){ arreglarSincronizacion(); return; }
   forzarSincronizacion(false); // cada vez que alguien mira el indicador, aprovechamos y releemos de la nube
   if(currentUserRole === 'vendedor'){
-    const texto = textoPrev;
-    if(texto === 'Sincronizado' || texto === 'Releyendo desde la nube...'){
+    if(syncEstado === 'on' || syncEstado === 'connecting'){
       toast('Todo se está guardando en la nube correctamente (Sincronizado).', 'success');
     } else {
-      toast('Este dispositivo NO está sincronizado con la nube (estado: "' + texto + '"). Lo que cargues acá puede no verse en otros dispositivos. Avisá al administrador para que lo conecte.', 'error');
+      toast('Este dispositivo NO está sincronizado con la nube. Lo que cargues acá puede no verse en otros dispositivos. Avisá al administrador para que lo conecte.', 'error');
     }
     return;
   }
   switchTab('config');
 }
+function sincronizacionBloqueada(){
+  // Un vendedor no puede cargar cosas nuevas mientras la nube esté en error:
+  // se perderían de vista del resto del equipo.
+  if(currentUserRole === 'vendedor' && syncEstado === 'error'){
+    toast('No se puede cargar nada nuevo: este dispositivo NO está guardando en la nube. Tocá el botón rojo "ARREGLAR AHORA".', 'error');
+    return true;
+  }
+  return false;
+}
+function arreglarSincronizacion(){
+  const btn = document.getElementById('sync-banner-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Arreglando...'; }
+  setSyncStatus('connecting', 'Arreglando...');
+  Promise.resolve(autoOptimizandoPorTamano ? null : optimizarImagenesGuardadas(true)).catch(function(){}).then(function(){
+    pushToCloud();
+    forzarSincronizacion(false);
+    setTimeout(function(){
+      if(btn){ btn.disabled = false; btn.textContent = 'ARREGLAR AHORA'; }
+      if(syncEstado === 'error') toast('Todavía no se pudo guardar. Revisá tu internet o avisá al administrador.', 'error');
+      else toast('Listo, todo sincronizado.', 'success');
+    }, 6000);
+  });
+}
+setInterval(function(){
+  // Reintento automático cada 30 s mientras haya error (los datos ya están guardados en este dispositivo)
+  if(syncEstado === 'error' && firebaseEnabled && navigator.onLine !== false) pushToCloud();
+}, 30000);
+window.addEventListener('online', function(){ if(syncEstado === 'error' && firebaseEnabled) pushToCloud(); });
 function setSyncStatus(status, text){
+  syncEstado = status; syncDetalle = text;
   const dot = document.getElementById('sync-dot');
   const label = document.getElementById('sync-label');
   const configLabel = document.getElementById('config-sync-status');
+  const btn = document.getElementById('sync-indicator-btn');
+  const banner = document.getElementById('sync-banner');
+  const corto = status === 'on' ? 'Sincronizado' : status === 'error' ? 'SIN SINCRONIZAR' : status === 'off' ? 'Modo local' : 'Conectando...';
   if(dot) dot.className = 'sync-dot sync-' + status;
-  if(label) label.textContent = text;
+  if(label) label.textContent = corto;
+  if(btn){ btn.className = 'sync-indicator sync-pill-' + status + ' text-xs sm:text-sm'; btn.title = text; }
   if(configLabel) configLabel.textContent = text;
+  if(banner) banner.style.display = (status === 'error') ? 'block' : 'none';
 }
 function aplicarSnapshotCloud(data){
   // Si este dispositivo tiene algo que la nube todavía no tiene (por ej.
