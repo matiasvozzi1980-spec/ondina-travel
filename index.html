@@ -1345,6 +1345,7 @@ service cloud.firestore {
 
     <div class="bg-white rounded-xl border border-line p-4 mb-6">
       <h3 class="font-display text-lg mb-2">Espacio en la nube (imágenes)</h3>
+      <div id="medidor-espacio" class="mb-3"></div>
       <p class="text-sm opacity-70 mb-2">
         Todas las capturas de pantalla que se pegan en files y presupuestos se guardan dentro del mismo
         documento compartido en la nube, que tiene un límite de 1MB. Si aparece el error
@@ -4012,6 +4013,7 @@ function aplicarAjusteFavor(){
 
 
 function renderAll(){
+  try{ actualizarMedidorEspacio(); }catch(e){}
   renderDashboard();
   renderFilesTable();
   renderListado();
@@ -4345,6 +4347,26 @@ async function optimizarImagenesGuardadas(modoEmergencia){
 }
 
 
+
+function actualizarMedidorEspacio(){
+  const el = document.getElementById('medidor-espacio');
+  if(!el) return;
+  const LIMITE = 1024;
+  const totalKB = Math.round(JSON.stringify(state).length / 1024);
+  let imgKB = 0;
+  [state.files, state.presupuestos].forEach(function(col){
+    (col || []).forEach(function(it){
+      (it.imagenes || []).forEach(function(i){ imgKB += (i && i.dataUrl) ? i.dataUrl.length : 0; });
+    });
+  });
+  imgKB = Math.round(imgKB / 1024);
+  const pct = Math.min(100, Math.round(totalKB / LIMITE * 100));
+  const color = pct >= 85 ? '#B91C1C' : pct >= 70 ? '#B45309' : '#15803D';
+  el.innerHTML =
+    '<div class="text-sm font-semibold mb-1">Usado: ' + totalKB + ' KB de ' + LIMITE + ' KB (' + pct + '%) · Libre: ' + Math.max(0, LIMITE - totalKB) + ' KB</div>' +
+    '<div style="height:14px;background:#E5E7EB;border-radius:999px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:' + color + ';"></div></div>' +
+    '<div class="text-xs opacity-60 mt-1">Imágenes: ' + imgKB + ' KB · Datos (files, movimientos, etc.): ' + Math.max(0, totalKB - imgKB) + ' KB</div>';
+}
 function abrirLiberarEspacio(){
   const filas = [];
   state.files.forEach(function(f){
@@ -4368,6 +4390,7 @@ function abrirLiberarEspacio(){
       '<span class="font-mono-num opacity-70">' + f.n + ' img · ' + Math.round(f.kb) + ' KB</span></label>';
   }).join('') : '<p class="p-3 text-sm opacity-70">No hay imágenes guardadas.</p>';
   document.getElementById('liberar-espacio-box').classList.remove('hidden');
+  actualizarMedidorEspacio();
 }
 function liberarImagenesSeleccionadas(){
   const chks = Array.prototype.slice.call(document.querySelectorAll('.liberar-chk:checked'));
