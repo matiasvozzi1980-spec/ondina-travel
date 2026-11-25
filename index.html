@@ -1354,6 +1354,18 @@ service cloud.firestore {
       </p>
       <button onclick="optimizarImagenesGuardadas()" class="btn-primary">Optimizar imágenes guardadas (liberar espacio)</button>
       <p id="optimizar-imagenes-msg" class="text-sm mt-2"></p>
+      <hr class="my-4" style="border-color:var(--line)">
+      <h4 class="font-semibold mb-1">Liberar espacio borrando imágenes</h4>
+      <p class="text-sm opacity-70 mb-2">Elegí de qué files o presupuestos querés borrar las imágenes. El file o presupuesto NO se borra, solo sus capturas (no se pueden recuperar).</p>
+      <button onclick="abrirLiberarEspacio()" class="btn-ghost">Liberar espacio de la nube</button>
+      <div id="liberar-espacio-box" class="mt-3 hidden">
+        <p id="liberar-espacio-resumen" class="text-sm font-semibold mb-2"></p>
+        <div id="liberar-espacio-lista" style="max-height:320px; overflow:auto;" class="border border-line rounded-lg"></div>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <button onclick="liberarImagenesSeleccionadas()" class="btn-primary">Vaciar imágenes seleccionadas y sincronizar</button>
+          <button onclick="document.getElementById('liberar-espacio-box').classList.add('hidden')" class="btn-ghost">Cerrar</button>
+        </div>
+      </div>
     </div>
 
     <div class="bg-white rounded-xl border border-line p-4 mb-6">
@@ -4330,6 +4342,48 @@ async function optimizarImagenesGuardadas(modoEmergencia){
   const texto = `Se optimizaron ${procesadas} imagen(es) — se liberaron ~${liberadoKB} KB. Subiendo a la nube...`;
   if(msgEl) msgEl.textContent = texto;
   toast(texto, 'success');
+}
+
+
+function abrirLiberarEspacio(){
+  const filas = [];
+  state.files.forEach(function(f){
+    if(Array.isArray(f.imagenes) && f.imagenes.length){
+      filas.push({ tipo:'file', id:f.id, titulo:'File ' + (f.fileNo||'') + ' · ' + (f.clienteNombre||'') + ' · ' + (f.destino||''), n:f.imagenes.length, kb:f.imagenes.reduce(function(s,i){ return s + ((i&&i.dataUrl)?i.dataUrl.length:0); },0)/1024 });
+    }
+  });
+  state.presupuestos.forEach(function(p){
+    if(Array.isArray(p.imagenes) && p.imagenes.length){
+      filas.push({ tipo:'presupuesto', id:p.id, titulo:'Presupuesto ' + (p.presupuestoNo||'') + ' · ' + (p.clienteNombre||'') + ' · ' + (p.destino||'') + (p.estado ? ' (' + p.estado + ')' : ''), n:p.imagenes.length, kb:p.imagenes.reduce(function(s,i){ return s + ((i&&i.dataUrl)?i.dataUrl.length:0); },0)/1024 });
+    }
+  });
+  filas.sort(function(a,b){ return b.kb - a.kb; });
+  const totalKB = Math.round(JSON.stringify(state).length / 1024);
+  const imgKB = Math.round(filas.reduce(function(s,f){ return s + f.kb; },0));
+  document.getElementById('liberar-espacio-resumen').textContent = 'Documento en la nube: ~' + totalKB + ' KB de 1024 KB (límite). Imágenes: ~' + imgKB + ' KB.';
+  document.getElementById('liberar-espacio-lista').innerHTML = filas.length ? filas.map(function(f){
+    return '<label class="flex items-center gap-2 px-3 py-2 border-b border-line text-sm" style="cursor:pointer">' +
+      '<input type="checkbox" class="liberar-chk" data-tipo="' + f.tipo + '" data-id="' + f.id + '"> ' +
+      '<span class="flex-1">' + String(f.titulo).replace(/</g,'&lt;') + '</span>' +
+      '<span class="font-mono-num opacity-70">' + f.n + ' img · ' + Math.round(f.kb) + ' KB</span></label>';
+  }).join('') : '<p class="p-3 text-sm opacity-70">No hay imágenes guardadas.</p>';
+  document.getElementById('liberar-espacio-box').classList.remove('hidden');
+}
+function liberarImagenesSeleccionadas(){
+  const chks = Array.prototype.slice.call(document.querySelectorAll('.liberar-chk:checked'));
+  if(!chks.length){ toast('Tildá al menos un file o presupuesto.', 'error'); return; }
+  if(!confirm('Se van a borrar las imágenes de ' + chks.length + ' elemento(s). No se pueden recuperar. ¿Continuar?')) return;
+  let liberadas = 0;
+  chks.forEach(function(c){
+    const id = c.getAttribute('data-id');
+    const col = c.getAttribute('data-tipo') === 'file' ? state.files : state.presupuestos;
+    const it = col.find(function(x){ return String(x.id) === id; });
+    if(it && Array.isArray(it.imagenes)){ liberadas += it.imagenes.length; it.imagenes = []; }
+  });
+  save();
+  toast('Se borraron ' + liberadas + ' imagen(es). Sincronizando...', 'success');
+  abrirLiberarEspacio();
+  setTimeout(function(){ forzarSincronizacion(false); }, 2500);
 }
 
 /* ====================================================================
