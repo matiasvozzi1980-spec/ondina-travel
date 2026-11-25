@@ -6057,11 +6057,13 @@ function getSyncConfig(){
   }catch(e){ return Object.assign({}, DEFAULT_SYNC_CONFIG); }
 }
 function onSyncIndicatorClick(){
+  // Leer el estado ANTES de releer (releer lo cambia a "Releyendo..." y daba falsa alarma)
+  const labelPrev = document.getElementById('sync-label');
+  const textoPrev = labelPrev ? labelPrev.textContent : '';
   forzarSincronizacion(false); // cada vez que alguien mira el indicador, aprovechamos y releemos de la nube
   if(currentUserRole === 'vendedor'){
-    const label = document.getElementById('sync-label');
-    const texto = label ? label.textContent : '';
-    if(texto === 'Sincronizado'){
+    const texto = textoPrev;
+    if(texto === 'Sincronizado' || texto === 'Releyendo desde la nube...'){
       toast('Todo se está guardando en la nube correctamente (Sincronizado).', 'success');
     } else {
       toast('Este dispositivo NO está sincronizado con la nube (estado: "' + texto + '"). Lo que cargues acá puede no verse en otros dispositivos. Avisá al administrador para que lo conecte.', 'error');
@@ -6126,7 +6128,15 @@ function forzarSincronizacion(mostrarAviso){
     return;
   }
   setSyncStatus('connecting', 'Releyendo desde la nube...');
+  let respondio = false;
+  setTimeout(function(){
+    if(!respondio){
+      setSyncStatus('error', 'Sin respuesta de la nube (revisá internet y recargá la página)');
+      if(mostrarAviso) toast('La nube no respondió. Revisá la conexión y recargá la página.', 'error');
+    }
+  }, 20000);
   syncDocRef.get({ source: 'server' }).then(function(snap){
+    respondio = true;
     if(snap.exists){
       aplicarSnapshotCloud(snap.data() || {});
       setSyncStatus('on', 'Sincronizado');
@@ -6136,6 +6146,7 @@ function forzarSincronizacion(mostrarAviso){
       if(mostrarAviso) toast('No se encontró el documento en la nube.', 'error');
     }
   }).catch(function(err){
+    respondio = true;
     console.error(err);
     setSyncStatus('error', 'Error de sincronización: ' + err.message);
     if(mostrarAviso) toast('No se pudo forzar la sincronización: ' + err.message, 'error');
